@@ -1,6 +1,8 @@
 import pygame
+# velikost okna
 width, height = 500, 500
 win = pygame.display.set_mode((width, height))
+# startovací pozice hada
 class Snake:
     def __init__(self):
         self.x = 250
@@ -19,6 +21,7 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
+# ovládání        
         keys = pygame.key.get_pressed()
         if keys[pygame.K_LEFT]:
             snake.x -= snake.vel
