@@ -36,7 +36,7 @@ class Snake:
         self.y = 250
         self.width = 10
         self.height = 10
-        self.vel = 10
+        self.vel = 5
 
     def draw(self, win):
         pygame.draw.rect(win, (0, 255, 0), (self.x, self.y, self.width, self.height))
@@ -116,7 +116,9 @@ def main():
                 if back_button.is_clicked(event):
                     state = "menu"
             elif state == "saves":
-                # back button function
+                if back_button.is_clicked(event):
+                    state = "menu"
+            elif state == "achievements":
                 if back_button.is_clicked(event):
                     state = "menu"
                 # saves creation function
@@ -161,6 +163,9 @@ def main():
             draw_text(WIN, "Press L to save quick slot", (200, 200, 200), (10, HEIGHT - 30))
             back_button.draw(WIN)
             snake.draw(WIN)
+        elif state == "achievements":
+            draw_text(WIN, "achievements", (255, 255, 255), (WIDTH // 2, 60), center=True)
+            back_button.draw(WIN)
         elif state == "upgrades":
             draw_text(WIN, "Upgrades Tree (placeholder)", (255, 255, 255), (WIDTH // 2, 60), center=True)
             draw_text(WIN, "- No upgrades implemented yet.\n- Use this screen to add upgrades.", (200, 200, 200), (WIDTH // 2, 150), center=True)
