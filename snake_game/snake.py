@@ -73,7 +73,7 @@ def main():
     pygame.init()
     clock = pygame.time.Clock()
 
-    state = "menu"  # menu, game, upgrades, saves
+    state = "menu"  # menu, game, upgrades, saves, save_name
     snake = Snake()
 
     # buttons
@@ -83,6 +83,7 @@ def main():
     exit_button = Button((300, 320, 200, 50), "Exit")
     achievement_button = Button((560, 430, 200, 50), "achievements")
     back_button = Button((20, 20, 120, 40), "Back")
+    settings_button = Button((560, 40, 200, 50), "settings")
 
     selected_save = None
 
@@ -102,6 +103,8 @@ def main():
                     state = "upgrades"
                 elif saves_button.is_clicked(event):
                     state = "saves"
+                elif settings_button.is_clicked(event):
+                    state = "settings"
                 elif achievement_button.is_clicked(event):
                     state = "achievements"
                 elif exit_button.is_clicked(event):
@@ -109,9 +112,11 @@ def main():
             elif state == "game":
                 if back_button.is_clicked(event):
                     state = "menu"
-                # allow saving using L key
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_l:
-                    save_state("quick", {"x": snake.x, "y": snake.y})
+                    state = "save_state"
+                # allow saving using L key
+                #if event.type == pygame.KEYDOWN and event.key == pygame.K_l:
+                   # save_state("quick", {"x": snake.x, "y": snake.y})
             elif state == "upgrades":
                 if back_button.is_clicked(event):
                     state = "menu"
@@ -119,6 +124,9 @@ def main():
                 if back_button.is_clicked(event):
                     state = "menu"
             elif state == "achievements":
+                if back_button.is_clicked(event):
+                    state = "menu"
+            elif state == "settings":
                 if back_button.is_clicked(event):
                     state = "menu"
                 # saves creation function
@@ -140,6 +148,7 @@ def main():
             saves_button.draw(WIN)
             achievement_button.draw(WIN)
             exit_button.draw(WIN)
+            settings_button.draw(WIN)
         # keys for moving the character
         elif state == "game":
             keys = pygame.key.get_pressed()
@@ -170,6 +179,10 @@ def main():
             draw_text(WIN, "Upgrades Tree (placeholder)", (255, 255, 255), (WIDTH // 2, 60), center=True)
             draw_text(WIN, "- No upgrades implemented yet.\n- Use this screen to add upgrades.", (200, 200, 200), (WIDTH // 2, 150), center=True)
             back_button.draw(WIN)
+        elif state == "settings":
+            back_button.draw(WIN)
+        elif state == "save_state":
+            draw_text(WIN, "name the save", (255, 255, 255), (WIDTH // 2, 60), center=True)
         elif state == "saves":
             draw_text(WIN, "Saves", (255, 255, 255), (WIDTH // 2, 60), center=True)
             saves = load_saves()
