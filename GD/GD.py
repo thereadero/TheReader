@@ -47,10 +47,15 @@ def draw_text(surface, text, color, pos, center=False):
         rect.topleft = pos
     surface.blit(rendered, rect)
 
+start_button = Button((300, 200, 200, 50), "Start")
+
 
 def main():
     pygame.init()
     clock = pygame.time.Clock()
+
+    state = "menu"  # menu, game, upgrades, saves, save_name
+    cube = Cube()
 
 
     run = True
@@ -61,6 +66,14 @@ def main():
             if event.type == pygame.QUIT:
                 run = False
                 break
+
+            if state == "menu":
+                if start_button.is_clicked(event):
+                    state = "game"
+
+        if state == "menu":
+                draw_text(WIN, "geometry dash", (255, 255, 255), (WIDTH // 2, 60), center=True)
+                start_button.draw(WIN)
 
         pygame.display.update()
         clock.tick(30)
