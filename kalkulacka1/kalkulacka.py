@@ -1,6 +1,17 @@
 # jednoduchá kalkulačka s funkcemi pro základní aritmetické operace, mocniny a odmocniny
 import math
+import tkinter as tk
 
+root = tk.Tk()
+
+# Setting some window properties
+root.title("Tk Example")
+root.configure(background="gray")
+root.minsize(200, 200)
+root.maxsize(500, 600)
+root.geometry("300x300+50+50")
+
+root.mainloop()
 class Calculator:
     def __init__(self):
         self.result = 0
