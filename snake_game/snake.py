@@ -73,7 +73,7 @@ def main():
     pygame.init()
     clock = pygame.time.Clock()
 
-    state = "menu"  # menu, game, upgrades, saves, save_name
+    state = "menu"  # menu, game, upgrades, saves, save_name, settings, achievements
     snake = Snake()
 
     # buttons
@@ -120,13 +120,13 @@ def main():
             elif state == "upgrades":
                 if back_button.is_clicked(event):
                     state = "menu"
-            elif state == "saves":
-                if back_button.is_clicked(event):
-                    state = "menu"
             elif state == "achievements":
                 if back_button.is_clicked(event):
                     state = "menu"
             elif state == "settings":
+                if back_button.is_clicked(event):
+                    state = "menu" 
+            elif state == "saves":
                 if back_button.is_clicked(event):
                     state = "menu"
                 # saves creation function
@@ -181,6 +181,7 @@ def main():
             back_button.draw(WIN)
         elif state == "settings":
             back_button.draw(WIN)
+            draw_text(WIN,"fps \n (placeholders) \n color",(255, 255, 255), (WIDTH // 2, 60), center=True)
         elif state == "save_state":
             draw_text(WIN, "name the save", (255, 255, 255), (WIDTH // 2, 60), center=True)
         elif state == "saves":

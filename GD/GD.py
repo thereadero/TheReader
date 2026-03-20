@@ -48,6 +48,7 @@ def draw_text(surface, text, color, pos, center=False):
     surface.blit(rendered, rect)
 
 start_button = Button((300, 200, 200, 50), "Start")
+back_button = Button((30, 40, 100, 40), "back")
 
 
 def main():
@@ -74,6 +75,27 @@ def main():
         if state == "menu":
                 draw_text(WIN, "geometry dash", (255, 255, 255), (WIDTH // 2, 60), center=True)
                 start_button.draw(WIN)
+
+        if state == "game":
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_LEFT]:
+                cube.x -= cube.vel
+            if keys[pygame.K_a]:
+                cube.x -= cube.vel
+            if keys[pygame.K_RIGHT]:
+                cube.x += cube.vel
+            if keys[pygame.K_d]:
+                cube.x += cube.vel
+            #if keys[pygame.K_UP]:
+                #cube.y -= cube.vel
+            #if keys[pygame.K_w]:
+                #cube.y -= cube.vel
+            if keys[pygame.K_SPACE]:
+                 cube.y -= cube.vel
+            back_button.draw(WIN)
+            cube.draw(WIN)
+            if back_button.is_clicked(event):
+                state = "menu"
 
         pygame.display.update()
         clock.tick(30)
