@@ -41,7 +41,7 @@ class VideoConverter(TkinterDnD.Tk):
         # Resolution
         tk.Label(self, text="Resolution:").pack(pady=5)
         self.resolution_combo = ttk.Combobox(self, textvariable=self.resolution,
-                                             values=["original", "1280x720", "1920x1080", "3840x2160"])
+                                             values=["original", "1280x720", "1920x1080", "2560x1440", "3840x2160"])
         self.resolution_combo.pack(pady=5)
 
         # Video Codec
@@ -75,15 +75,7 @@ class VideoConverter(TkinterDnD.Tk):
         else:
             messagebox.showwarning("Warning", "Dropped item is not a file")
 
-    def on_drop(self, event):
-        file_path = event.data.strip('{}')
-        if os.path.isfile(file_path):
-            self.input_file.set(file_path)
-            # Suggest output file
-            base, ext = os.path.splitext(file_path)
-            self.output_file.set(base + "_converted.mp4")
-        else:
-            messagebox.showwarning("Warning", "Dropped item is not a file")
+    
 
     def convert(self):
         input_file = self.input_file.get()
