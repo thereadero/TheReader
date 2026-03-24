@@ -13,9 +13,17 @@ selected_type = 'block'
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+spawn_x = 250
+spawn_y = 200
+
 try:
     with open(os.path.join(SCRIPT_DIR, 'maps.json'), 'r') as f:
         objects = json.load(f)
+        for obj in objects:
+            if obj['type'] == 'spawn':
+                spawn_x = obj['x']
+                spawn_y = obj['y']
+                break
 except:
     objects = []
 
@@ -93,7 +101,7 @@ def draw_grid(surface, camera_x=0, grid_size=40):
         pygame.draw.line(surface, (40, 40, 40), (0, y), (WIDTH, y))
 
 
-def draw_objects(surface, objects, camera_x=0):
+def draw_objects(surface, objects, camera_x=0, show_spawn=True):
     for obj in objects:
         draw_x = obj['x'] - camera_x
         if obj['type'] == 'block':
@@ -111,6 +119,8 @@ def draw_objects(surface, objects, camera_x=0):
                 (draw_x + obj['w'], obj['y'] + obj['h'])
             ]
             pygame.draw.polygon(surface, (255, 0, 0), points)
+        elif obj['type'] == 'spawn' and show_spawn:
+            draw_text(surface, "SPAWN", (0, 255, 255), (draw_x + 30, obj['y']))
 
 def save_map(objects, path='maps.json'):
     full_path = os.path.join(SCRIPT_DIR, path)
@@ -143,7 +153,7 @@ clear_button = Button((140, 40, 100, 40), "Clear")
 
 
 def main():
-    global selected_type, objects
+    global selected_type, objects, spawn_x, spawn_y
     pygame.init()
     clock = pygame.time.Clock()
 
@@ -216,39 +226,59 @@ def main():
                     elif event.key == pygame.K_d:
                         cube.world_x += cube.vel
 
-                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    if back_button.is_clicked(event):
-                        state = "menu"
-                    elif clear_button.is_clicked(event):
-                        objects.clear()
-                    elif save_button.is_clicked(event):
-                        save_name = ""
-                        state = "save_name"
-                    else:
-                        mx, my = event.pos
-                        grid_size = 20
-                        world_x = ((mx + cube.world_x - cube.screen_x) // grid_size) * grid_size
-                        world_y = (my // grid_size) * grid_size
-
-                        if selected_type == 'platform':
-                            h = 20
-                            w = 60
-                        elif selected_type == 'tall_platform':
-                            h = 60
-                            w = 60
-                        elif selected_type == 'floor':
-                            h = 40
-                            w = 800
-                            world_x = cube.world_x - cube.screen_x
-                            world_y = HEIGHT - h
-                        elif selected_type == 'spike':
-                            h = 60
-                            w = 60
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if event.button == 1:
+                        if back_button.is_clicked(event):
+                            state = "menu"
+                        elif clear_button.is_clicked(event):
+                            objects.clear()
+                        elif save_button.is_clicked(event):
+                            save_name = ""
+                            state = "save_name"
                         else:
-                            h = 60
-                            w = 60
+                            mx, my = event.pos
+                            grid_size = 20
+                            world_x = ((mx + cube.world_x - cube.screen_x) // grid_size) * grid_size
+                            world_y = (my // grid_size) * grid_size
 
-                        objects.append({'type': selected_type, 'x': world_x, 'y': world_y, 'w': w, 'h': h})
+                            if selected_type == 'platform':
+                                w = 60
+                                h = 20
+                            elif selected_type == 'tall_platform':
+                                w = 60
+                                h = 60
+                            elif selected_type == 'floor':
+                                w = 800
+                                h = 40
+                                x = cube.world_x - cube.screen_x
+                                y = HEIGHT - h
+                                objects.append({'type': selected_type, 'x': x, 'y': y, 'w': w, 'h': h})
+                                continue
+                            elif selected_type == 'spike':
+                                w = 60
+                                h = 60
+                            elif selected_type == 'spawn':
+                                w = 60
+                                h = 60
+                            else:  # block
+                                w = 60
+                                h = 60
+
+                            x = world_x - w // 2
+                            y = world_y - h // 2
+                            if selected_type == 'spawn':
+                                spawn_x = world_x
+                                spawn_y = world_y
+                            objects.append({'type': selected_type, 'x': x, 'y': y, 'w': w, 'h': h})
+                    elif event.button == 3:
+                        mx, my = event.pos
+                        world_x = mx + camera_x
+                        world_y = my
+                        # Find and remove object at this position
+                        for i, obj in enumerate(objects):
+                            if obj['x'] <= world_x < obj['x'] + obj['w'] and obj['y'] <= world_y < obj['y'] + obj['h']:
+                                del objects[i]
+                                break
 
         if state == "menu":
                 draw_text(WIN, "geometry dash", (255, 255, 255), (WIDTH // 2, 60), center=True)
@@ -325,14 +355,14 @@ def main():
                     obj_rect = pygame.Rect(obj['x'], obj['y'], obj['w'], obj['h'])
                     if cube_rect.colliderect(obj_rect):
                         cube.tries += 1
-                        cube.world_x = 250
-                        cube.y = 200
+                        cube.world_x = spawn_x
+                        cube.y = spawn_y
                         cube.vel_y = 0
                         cube.on_ground = False
                         break
 
             camera_x = cube.world_x - cube.screen_x
-            draw_objects(WIN, objects, camera_x)
+            draw_objects(WIN, objects, camera_x, show_spawn=False)
             draw_text(WIN, f"Tries: {cube.tries}", (255, 255, 255), (10, 10))
             back_button.draw(WIN)
             cube.draw(WIN)
@@ -351,6 +381,8 @@ def main():
                 selected_type = 'floor'
             if keys[pygame.K_s]:
                 selected_type = 'spike'
+            if keys[pygame.K_t]:
+                selected_type = 'spawn'
             if keys[pygame.K_a]:
                 cube.world_x -= cube.vel
             if keys[pygame.K_d]:
@@ -361,6 +393,36 @@ def main():
             draw_grid(WIN, camera_x)
             draw_objects(WIN, objects, camera_x)
 
+            # Draw silhouette
+            mx, my = pygame.mouse.get_pos()
+            grid_size = 20
+            sil_world_x = ((mx + cube.world_x - cube.screen_x) // grid_size) * grid_size
+            sil_world_y = (my // grid_size) * grid_size
+            sil_draw_x = sil_world_x - camera_x
+
+            sil_surf = pygame.Surface((WIN.get_width(), WIN.get_height()), pygame.SRCALPHA)
+            if selected_type == 'block':
+                pygame.draw.rect(sil_surf, (0, 0, 255, 128), (sil_draw_x - 30, sil_world_y - 30, 60, 60))
+            elif selected_type == 'platform':
+                pygame.draw.rect(sil_surf, (0, 255, 0, 128), (sil_draw_x - 30, sil_world_y - 10, 60, 20))
+            elif selected_type == 'tall_platform':
+                pygame.draw.rect(sil_surf, (0, 200, 200, 128), (sil_draw_x - 30, sil_world_y - 30, 60, 60))
+            elif selected_type == 'floor':
+                sil_world_x = cube.world_x - cube.screen_x
+                sil_world_y = HEIGHT - 40
+                sil_draw_x = sil_world_x - camera_x
+                pygame.draw.rect(sil_surf, (100, 100, 100, 128), (sil_draw_x, sil_world_y, 800, 40))
+            elif selected_type == 'spike':
+                points = [
+                    (sil_draw_x, sil_world_y - 30),
+                    (sil_draw_x - 30, sil_world_y + 30),
+                    (sil_draw_x + 30, sil_world_y + 30)
+                ]
+                pygame.draw.polygon(sil_surf, (255, 0, 0, 128), points)
+            elif selected_type == 'spawn':
+                draw_text(sil_surf, "SPAWN", (0, 255, 255, 128), (sil_draw_x, sil_world_y))
+            WIN.blit(sil_surf, (0, 0))
+
             menu_x = 10
             menu_y = 70
             menu_gap = 55
@@ -369,7 +431,8 @@ def main():
                 ('platform', 'Platform'),
                 ('tall_platform', 'Tall'),
                 ('floor', 'Floor'),
-                ('spike', 'Spike')
+                ('spike', 'Spike'),
+                ('spawn', 'Spawn')
             ]
             for i, (t, label) in enumerate(build_items):
                 y = menu_y + i * menu_gap
@@ -379,7 +442,8 @@ def main():
                     'platform': 'P',
                     'tall_platform': 'H',
                     'floor': 'F',
-                    'spike': 'S'
+                    'spike': 'S',
+                    'spawn': 'T'
                 }
                 draw_text(WIN, f"{key_labels[t]} - {label}", text_color, (menu_x, y))
                 icon_x = menu_x + 150
@@ -395,8 +459,6 @@ def main():
                 elif t == 'spike':
                     pygame.draw.polygon(WIN, (255, 0, 0), [(icon_x + 15, icon_y), (icon_x, icon_y + 30), (icon_x + 30, icon_y + 30)])
 
-            draw_text(WIN, f"Selected: {selected_type}", (255, 255, 255), (10, 20))
-            draw_text(WIN, "B:Block P:Platform H:Tall F:Floor S:Spike, Enter:Save", (255, 255, 255), (10, 40))
             back_button.draw(WIN)
             clear_button.draw(WIN)
             save_button.draw(WIN)
