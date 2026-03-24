@@ -11,8 +11,10 @@ FONT = pygame.font.SysFont("Arial", 32)
 objects = []
 selected_type = 'block'
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 try:
-    with open('TheReader/GD/maps.json', 'r') as f:
+    with open(os.path.join(SCRIPT_DIR, 'maps.json'), 'r') as f:
         objects = json.load(f)
 except:
     objects = []
@@ -46,7 +48,7 @@ class Cube:
         self.vel = 15
         self.vel_y = 0
         self.gravity = 4.0
-        self.jump_strength = 22  # calibrated for block-top reach
+        self.jump_strength = 36  # 25% more than 22
         self.floor_y = HEIGHT - self.height
         self.tries = 0
         self.on_ground = False
@@ -110,21 +112,23 @@ def draw_objects(surface, objects, camera_x=0):
             ]
             pygame.draw.polygon(surface, (255, 0, 0), points)
 
-def save_map(objects, path='TheReader/GD/maps.json'):
-    with open(path, 'w') as f:
+def save_map(objects, path='maps.json'):
+    full_path = os.path.join(SCRIPT_DIR, path)
+    with open(full_path, 'w') as f:
         json.dump(objects, f)
 
 
 def load_map(path):
-    if not os.path.exists(path):
+    full_path = os.path.join(SCRIPT_DIR, path)
+    if not os.path.exists(full_path):
         return []
-    with open(path, 'r') as f:
+    with open(full_path, 'r') as f:
         return json.load(f)
 
 
 def list_save_files():
     saves = []
-    for fn in os.listdir('TheReader/GD'):
+    for fn in os.listdir(SCRIPT_DIR):
         if fn.startswith('maps_') and fn.endswith('.json'):
             saves.append(fn)
     saves.sort()
@@ -181,7 +185,7 @@ def main():
                         save_name = save_name[:-1]
                     elif event.key == pygame.K_RETURN:
                         final_name = save_name.strip().replace(' ', '_') or 'default'
-                        path = f"TheReader/GD/maps_{final_name}.json"
+                        path = f"maps_{final_name}.json"
                         save_map(objects, path)
                         objects = load_map(path)
                         state = "menu"
@@ -200,7 +204,7 @@ def main():
                         selected_save_index = min(len(save_list) - 1, selected_save_index + 1)
                     elif event.key == pygame.K_RETURN and save_list:
                         selected = save_list[selected_save_index]
-                        objects = load_map(os.path.join('TheReader/GD', selected))
+                        objects = load_map(selected)
                         state = "game"
                     elif event.key == pygame.K_ESCAPE:
                         state = "menu"
