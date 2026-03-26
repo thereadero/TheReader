@@ -375,56 +375,6 @@ def main():
                         elif save_button.is_clicked(event):
                             save_name = ""
                             state = "save_name"
-                        else:
-                            mx, my = event.pos
-                            grid_size = 30
-                            world_x = ((mx + camera_x) // grid_size) * grid_size
-                            world_y = (my // grid_size) * grid_size
-
-                            if selected_type == 'platform':
-                                w = 60
-                                h = 20
-                            elif selected_type == 'tall_platform':
-                                w = 60
-                                h = 60
-                            elif selected_type == 'floor':
-                                w = 800
-                                h = 40
-                                x = world_x
-                                y = HEIGHT - h
-                                objects.append({'type': selected_type, 'x': x, 'y': y, 'w': w, 'h': h})
-                                continue
-                            elif selected_type == 'spike':
-                                w = 60
-                                h = 60
-                            elif selected_type == 'spawn':
-                                w = 60
-                                h = 60
-                            elif selected_type == 'end':
-                                w = 60
-                                h = 60
-                            elif selected_type == 'ramp':
-                                w = 60
-                                h = 60
-                            else:  # block
-                                w = 60
-                                h = 60
-
-                            x = world_x
-                            y = world_y
-                            if selected_type == 'spawn':
-                                spawn_x = world_x
-                                spawn_y = world_y
-                            objects.append({'type': selected_type, 'x': x, 'y': y, 'w': w, 'h': h})
-                    elif event.button == 3:
-                        mx, my = event.pos
-                        world_x = mx + camera_x
-                        world_y = my
-                        # Find and remove object at this position
-                        for i, obj in enumerate(objects):
-                            if obj['x'] <= world_x < obj['x'] + obj['w'] and obj['y'] <= world_y < obj['y'] + obj['h']:
-                                del objects[i]
-                                break
 
         if state == "menu":
                 draw_text(WIN, "geometry dash", (255, 255, 255), (WIDTH // 2, 60), center=True)
@@ -534,26 +484,38 @@ def main():
             if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
                 dx += cube.vel
 
-            new_world_x = cube.world_x + dx
-            cube_mask, new_rect = get_shape_mask_and_rect(cube, new_world_x, cube.y)
-            collision = False
-            for obj in objects:
-                if obj['type'] in ['block', 'platform', 'tall_platform', 'floor', 'ramp']:
-                    obj_rect = pygame.Rect(obj['x'], obj['y'], obj['w'], obj['h'])
-                    if new_rect.colliderect(obj_rect):
-                        if obj['type'] == 'ramp':
-                            ramp_surf = pygame.Surface((obj['w'], obj['h']), pygame.SRCALPHA)
-                            pygame.draw.polygon(ramp_surf, (255, 255, 255), [(0, obj['h']), (obj['w'], obj['h']), (obj['w'], 0)])
-                            obj_mask = pygame.mask.from_surface(ramp_surf)
-                        else:
-                            obj_mask = pygame.Mask((obj['w'], obj['h']), fill=True)
-                            
-                        offset = (int(obj['x'] - new_rect.x), int(obj['y'] - new_rect.y))
-                        if cube_mask.overlap(obj_mask, offset):
-                            collision = True
+            def check_col(test_x, test_y):
+                c_mask, t_rect = get_shape_mask_and_rect(cube, test_x, test_y)
+                for obj in objects:
+                    if obj['type'] in ['block', 'platform', 'tall_platform', 'floor', 'ramp']:
+                        obj_rect = pygame.Rect(obj['x'], obj['y'], obj['w'], obj['h'])
+                        if t_rect.colliderect(obj_rect):
+                            if obj['type'] == 'ramp':
+                                ramp_surf = pygame.Surface((obj['w'], obj['h']), pygame.SRCALPHA)
+                                pygame.draw.polygon(ramp_surf, (255, 255, 255), [(0, obj['h']), (obj['w'], obj['h']), (obj['w'], 0)])
+                                obj_mask = pygame.mask.from_surface(ramp_surf)
+                            else:
+                                obj_mask = pygame.Mask((obj['w'], obj['h']), fill=True)
+                            offset = (int(obj['x'] - t_rect.x), int(obj['y'] - t_rect.y))
+                            if c_mask.overlap(obj_mask, offset):
+                                return True
+                return False
+
+            if dx != 0:
+                new_world_x = cube.world_x + dx
+                if not check_col(new_world_x, cube.y):
+                    cube.world_x = new_world_x
+                else:
+                    # Stepping up slopes
+                    step_collision = True
+                    for step in range(1, 26):
+                        if not check_col(new_world_x, cube.y - step):
+                            cube.world_x = new_world_x
+                            cube.y -= step
+                            step_collision = False
                             break
-            if not collision:
-                cube.world_x = new_world_x
+                    if step_collision:
+                        pass
 
             # Vertical
             cube.vel_y += cube.gravity
@@ -575,13 +537,31 @@ def main():
                         offset = (int(obj['x'] - new_rect.x), int(obj['y'] - new_rect.y))
                         if cube_mask.overlap(obj_mask, offset):
                             if cube.vel_y > 0:  # falling down
-                                while cube_mask.overlap(obj_mask, (int(obj['x'] - new_rect.x), int(obj['y'] - new_rect.y))):
-                                    new_y -= 1
-                                    new_rect.y -= 1
-                                cube.y = new_y
-                                cube.vel_y = 0
-                                cube.on_ground = True
-                                collision = True
+                                push_up_dist = 0
+                                t_new_y = new_y
+                                t_new_rect_y = new_rect.y
+                                while cube_mask.overlap(obj_mask, (int(obj['x'] - new_rect.x), int(obj['y'] - t_new_rect_y))):
+                                    t_new_y -= 1
+                                    t_new_rect_y -= 1
+                                    push_up_dist += 1
+                                    if push_up_dist > max(35, cube.vel_y + 5):
+                                        break
+                                
+                                if push_up_dist <= max(35, cube.vel_y + 5):
+                                    new_y = t_new_y
+                                    new_rect.y = t_new_rect_y
+                                    cube.y = new_y
+                                    cube.vel_y = 0
+                                    cube.on_ground = True
+                                    collision = True
+                                else:
+                                    # Too far to push up, must be hitting ceiling due to rotation
+                                    while cube_mask.overlap(obj_mask, (int(obj['x'] - new_rect.x), int(obj['y'] - new_rect.y))):
+                                        new_y += 1
+                                        new_rect.y += 1
+                                    cube.y = new_y
+                                    collision = True
+
                             elif cube.vel_y < 0:  # moving up
                                 while cube_mask.overlap(obj_mask, (int(obj['x'] - new_rect.x), int(obj['y'] - new_rect.y))):
                                     new_y += 1
@@ -640,7 +620,7 @@ def main():
 
             camera_x = cube.world_x - cube.screen_x
             draw_objects(WIN, objects, camera_x, show_spawn=False)
-            draw_text(WIN, f"Tries: {cube.tries}", (255, 255, 255), (10, 10))
+            draw_text(WIN, f"Tries: {cube.tries}", (255, 255, 255), (10, 60))
             back_button.draw(WIN)
             cube.draw(WIN)
             if back_button.is_clicked(event):
@@ -670,6 +650,52 @@ def main():
                 cube.world_x += cube.vel
             if keys[pygame.K_RETURN]:
                 save_map(objects)
+
+            mouse_pressed = pygame.mouse.get_pressed()
+            mx, my = pygame.mouse.get_pos()
+            
+            ui_hover = False
+            for btn in [back_button, build_cat_blocks, build_cat_enemy, build_cat_misc, clear_button, save_button]:
+                if btn.rect.collidepoint(mx, my):
+                    ui_hover = True
+            
+            if not ui_hover:
+                if mouse_pressed[0]: # Left click
+                    grid_size = 30
+                    world_x = ((mx + camera_x) // grid_size) * grid_size
+                    world_y = (my // grid_size) * grid_size
+
+                    w, h = 60, 60
+                    if selected_type == 'platform':
+                        w, h = 60, 20
+                    elif selected_type == 'floor':
+                        w, h = 800, 40
+
+                    x, y = world_x, world_y
+                    if selected_type == 'floor':
+                        y = HEIGHT - h
+
+                    exists = False
+                    for obj in objects:
+                        if obj['x'] == x and obj['y'] == y and obj['type'] == selected_type:
+                            exists = True
+                            break
+                    
+                    if not exists:
+                        if selected_type == 'spawn':
+                            spawn_x = world_x
+                            spawn_y = world_y
+                        objects.append({'type': selected_type, 'x': x, 'y': y, 'w': w, 'h': h})
+                
+                elif mouse_pressed[2]: # Right click
+                    world_x = mx + camera_x
+                    world_y = my
+                    new_objects = []
+                    for obj in objects:
+                        if obj['x'] <= world_x < obj['x'] + obj['w'] and obj['y'] <= world_y < obj['y'] + obj['h']:
+                            continue
+                        new_objects.append(obj)
+                    objects[:] = new_objects
 
             draw_grid(WIN, camera_x)
             draw_objects(WIN, objects, camera_x)
