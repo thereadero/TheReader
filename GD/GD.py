@@ -163,13 +163,18 @@ def draw_objects(surface, objects, camera_x=0, show_spawn=True):
             pygame.draw.rect(surface, (0, 200, 200), (draw_x, obj['y'], obj['w'], obj['h']))
         elif obj['type'] == 'floor':
             pygame.draw.rect(surface, (100, 100, 100), (draw_x, obj['y'], obj['w'], obj['h']))
-        elif obj['type'] == 'spike':
-            points = [
-                (draw_x + obj['w'] / 2, obj['y']),
-                (draw_x, obj['y'] + obj['h']),
-                (draw_x + obj['w'], obj['y'] + obj['h'])
-            ]
-            pygame.draw.polygon(surface, (255, 0, 0), points)
+        elif obj['type'].startswith('spike'):
+            n = int(obj['type'].split('_')[1]) if '_' in obj['type'] else 1
+            sw = 60
+            dx = 30
+            for i in range(n):
+                px = draw_x + i * dx
+                points = [
+                    (px + sw / 2, obj['y']),
+                    (px, obj['y'] + obj['h']),
+                    (px + sw, obj['y'] + obj['h'])
+                ]
+                pygame.draw.polygon(surface, (255, 0, 0), points)
         elif obj['type'] == 'spawn' and show_spawn:
             draw_text(surface, "SPAWN", (0, 255, 255), (draw_x + 30, obj['y']))
         elif obj['type'] == 'end':
@@ -592,11 +597,16 @@ def main():
             # Check spike collision
             cube_mask, current_rect = get_shape_mask_and_rect(cube, cube.world_x, cube.y)
             for obj in objects:
-                if obj['type'] == 'spike':
+                if obj['type'].startswith('spike'):
                     obj_rect = pygame.Rect(obj['x'], obj['y'], obj['w'], obj['h'])
                     if current_rect.colliderect(obj_rect):
                         spike_surf = pygame.Surface((obj['w'], obj['h']), pygame.SRCALPHA)
-                        pygame.draw.polygon(spike_surf, (255, 255, 255), [(obj['w']/2, 0), (0, obj['h']), (obj['w'], obj['h'])])
+                        n = int(obj['type'].split('_')[1]) if '_' in obj['type'] else 1
+                        sw = 60
+                        dx = 30
+                        for i in range(n):
+                            px = i * dx
+                            pygame.draw.polygon(spike_surf, (255, 255, 255), [(px + sw/2, 0), (px, obj['h']), (px + sw, obj['h'])])
                         spike_mask = pygame.mask.from_surface(spike_surf)
                         
                         offset = (int(obj['x'] - current_rect.x), int(obj['y'] - current_rect.y))
@@ -638,6 +648,10 @@ def main():
                 selected_type = 'floor'
             if keys[pygame.K_s]:
                 selected_type = 'spike'
+            if keys[pygame.K_2]:
+                selected_type = 'spike_2'
+            if keys[pygame.K_3]:
+                selected_type = 'spike_3'
             if keys[pygame.K_t]:
                 selected_type = 'spawn'
             if keys[pygame.K_e]:
@@ -654,10 +668,35 @@ def main():
             mouse_pressed = pygame.mouse.get_pressed()
             mx, my = pygame.mouse.get_pos()
             
+            menu_data = [
+                ('blocks', build_cat_blocks, [
+                    ('block', 'Block'), ('platform', 'Platform'), ('floor', 'Floor'), 
+                    ('ramp', 'Ramp'), ('tall_platform', 'Tall')
+                ]),
+                ('enemy', build_cat_enemy, [
+                    ('spike', 'Spike'), ('spike_2', '2 Spikes'), ('spike_3', '3 Spikes')
+                ]),
+                ('miscellaneous', build_cat_misc, [
+                    ('spawn', 'Start'), ('end', 'End')
+                ])
+            ]
+
             ui_hover = False
-            for btn in [back_button, build_cat_blocks, build_cat_enemy, build_cat_misc, clear_button, save_button]:
+            for btn in [back_button, clear_button, save_button]:
                 if btn.rect.collidepoint(mx, my):
                     ui_hover = True
+
+            check_y = 70
+            for cat_id, cat_btn, items in menu_data:
+                cat_btn.rect.x = 10
+                cat_btn.rect.y = check_y
+                if cat_btn.rect.collidepoint(mx, my):
+                    ui_hover = True
+                check_y += 50
+                if current_build_category == cat_id:
+                    if mx < 220 and check_y <= my < check_y + len(items) * 55:
+                        ui_hover = True
+                    check_y += len(items) * 55
             
             if not ui_hover:
                 if mouse_pressed[0]: # Left click
@@ -668,8 +707,13 @@ def main():
                     w, h = 60, 60
                     if selected_type == 'platform':
                         w, h = 60, 20
+                    elif selected_type == 'tall_platform':
+                        w, h = 60, 180
                     elif selected_type == 'floor':
                         w, h = 800, 40
+                    elif selected_type.startswith('spike_'):
+                        n = int(selected_type.split('_')[1])
+                        w, h = 60 + (n - 1) * 30, 60
 
                     x, y = world_x, world_y
                     if selected_type == 'floor':
@@ -713,16 +757,21 @@ def main():
             elif selected_type == 'platform':
                 pygame.draw.rect(sil_surf, (0, 255, 0, 128), (sil_draw_x, sil_world_y, 60, 20))
             elif selected_type == 'tall_platform':
-                pygame.draw.rect(sil_surf, (0, 200, 200, 128), (sil_draw_x, sil_world_y, 60, 60))
+                pygame.draw.rect(sil_surf, (0, 200, 200, 128), (sil_draw_x, sil_world_y, 60, 180))
             elif selected_type == 'floor':
                 pygame.draw.rect(sil_surf, (100, 100, 100, 128), (sil_draw_x, HEIGHT - 40, 800, 40))
-            elif selected_type == 'spike':
-                points = [
-                    (sil_draw_x + 30, sil_world_y),
-                    (sil_draw_x, sil_world_y + 60),
-                    (sil_draw_x + 60, sil_world_y + 60)
-                ]
-                pygame.draw.polygon(sil_surf, (255, 0, 0, 128), points)
+            elif selected_type.startswith('spike'):
+                n = int(selected_type.split('_')[1]) if '_' in selected_type else 1
+                sw = 60
+                dx = 30
+                for i in range(n):
+                    px = sil_draw_x + i * dx
+                    points = [
+                        (px + sw/2, sil_world_y),
+                        (px, sil_world_y + 60),
+                        (px + sw, sil_world_y + 60)
+                    ]
+                    pygame.draw.polygon(sil_surf, (255, 0, 0, 128), points)
             elif selected_type == 'spawn':
                 draw_text(sil_surf, "SPAWN", (0, 255, 255, 128), (sil_draw_x + 2, sil_world_y + 15))
             elif selected_type == 'end':
@@ -732,24 +781,14 @@ def main():
                 pygame.draw.polygon(sil_surf, (0, 150, 0, 128), points)
             WIN.blit(sil_surf, (0, 0))
 
-            menu_data = [
-                ('blocks', build_cat_blocks, [
-                    ('block', 'Block'), ('platform', 'Platform'), ('floor', 'Floor'), 
-                    ('ramp', 'Ramp'), ('tall_platform', 'Tall')
-                ]),
-                ('enemy', build_cat_enemy, [
-                    ('spike', 'Spike')
-                ]),
-                ('miscellaneous', build_cat_misc, [
-                    ('spawn', 'Start'), ('end', 'End')
-                ])
-            ]
+            # menu_data moved up
 
             menu_x = 10
             current_y = 70
             key_labels = {
                 'block': 'B', 'platform': 'P', 'tall_platform': 'H',
-                'floor': 'F', 'spike': 'S', 'spawn': 'T', 'end': 'E', 'ramp': 'R'
+                'floor': 'F', 'spike': 'S', 'spawn': 'T', 'end': 'E', 'ramp': 'R',
+                'spike_2': '2', 'spike_3': '3'
             }
 
             for cat_id, cat_btn, items in menu_data:
@@ -772,8 +811,13 @@ def main():
                             pygame.draw.rect(WIN, (0, 200, 200), (icon_x, icon_y, 30, 50))
                         elif t == 'floor':
                             pygame.draw.rect(WIN, (100, 100, 100), (icon_x, icon_y + 15, 70, 20))
-                        elif t == 'spike':
-                            pygame.draw.polygon(WIN, (255, 0, 0), [(icon_x + 15, icon_y), (icon_x, icon_y + 30), (icon_x + 30, icon_y + 30)])
+                        elif t.startswith('spike'):
+                            n = int(t.split('_')[1]) if '_' in t else 1
+                            sw = 30 / (1 + (n - 1) * 0.5)
+                            dx = sw * 0.5
+                            for i in range(n):
+                                px = icon_x + i * dx
+                                pygame.draw.polygon(WIN, (255, 0, 0), [(px + sw/2, icon_y), (px, icon_y + 30), (px + sw, icon_y + 30)])
                         elif t == 'end':
                             draw_text(WIN, "E", (255, 255, 0), (icon_x, icon_y))
                         elif t == 'ramp':
