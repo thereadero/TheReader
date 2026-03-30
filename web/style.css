@@ -7,6 +7,7 @@ body{
     padding: 0;
     margin: 20px;
     list-style-type: none;
+
     
 }
 .left-nav{
@@ -15,6 +16,9 @@ body{
     gap: 50px;
     position: absolute;
 
+}
+li{
+    padding: 5px;
 }
 li a{
     text-decoration: none;
@@ -25,8 +29,16 @@ li a{
     position: absolute;
 }
 .search{
+    margin-right: 15px;
     padding: 5px;
     border-radius: 15px;
     border: none;
     background-color: bisque;
+}
+footer{
+    bottom: 0;
+    position: fixed;
+    text-align: center;
+    width: 100%;
+    background-color: aquamarine;
 }
