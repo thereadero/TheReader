@@ -1,0 +1,32 @@
+body{
+    padding: 0;
+    margin: 0;
+
+}
+.nav{
+    padding: 0;
+    margin: 20px;
+    list-style-type: none;
+    
+}
+.left-nav{
+    display: flex;
+    flex-direction: row;
+    gap: 50px;
+    position: absolute;
+
+}
+li a{
+    text-decoration: none;
+    color: black;
+}
+.right-nav{
+    justify-self: end;
+    position: absolute;
+}
+.search{
+    padding: 5px;
+    border-radius: 15px;
+    border: none;
+    background-color: bisque;
+}
