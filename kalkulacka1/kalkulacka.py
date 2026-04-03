@@ -2,16 +2,7 @@
 import math
 import tkinter as tk
 
-root = tk.Tk()
-
-# Setting some window properties
-root.title("Tk Example")
-root.configure(background="gray")
-root.minsize(200, 200)
-root.maxsize(500, 600)
-root.geometry("300x300+50+50")
-
-root.mainloop()
+# Remove the blocking GUI code from top
 class Calculator:
     def __init__(self):
         self.result = 0
@@ -46,37 +37,59 @@ class Calculator:
     def clear(self):
         self.result = 0
         return self.result
+class CalculatorApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Kalkulačka")
+        self.root.configure(background="gray")
+        self.root.geometry("320x450+50+50")
+        
+        self.calc = Calculator()
+        self.expression = ""
+        
+        # Screen
+        self.screen_var = tk.StringVar()
+        self.screen = tk.Entry(root, textvariable=self.screen_var, font=('Arial', 24), bg="white", justify="right")
+        self.screen.grid(row=0, column=0, columnspan=4, ipadx=8, ipady=20, pady=10, padx=10, sticky="ew")
+        
+        # Buttons for numbers and basic operations
+        buttons = [
+            '7', '8', '9', '/',
+            '4', '5', '6', '*',
+            '1', '2', '3', '-',
+            'C', '0', '=', '+'
+        ]
+        
+        row_val = 1
+        col_val = 0
+        for button in buttons:
+            action = lambda x=button: self.click(x)
+            tk.Button(root, text=button, width=5, height=2, font=('Arial', 14), command=action).grid(row=row_val, column=col_val, padx=5, pady=5)
+            col_val += 1
+            if col_val > 3:
+                col_val = 0
+                row_val += 1
+
+    def click(self, item):
+        if item == 'C':
+            self.expression = ""
+            self.screen_var.set("")
+        elif item == '=':
+            try:
+                # Zjednodušený výpočet evaluací
+                result = str(eval(self.expression))
+                self.screen_var.set(result)
+                self.expression = result
+            except Exception:
+                self.screen_var.set("Error")
+                self.expression = ""
+        else:
+            if self.screen_var.get() == "Error":
+                self.expression = ""
+            self.expression += str(item)
+            self.screen_var.set(self.expression)
+
 if __name__ == "__main__":
-    calc = Calculator()
-    print("Welcome to the Calculator!")
-    while True:
-        try:
-# uživatelský vstup pro výběr operace a čísel, s ošetřením neplatných vstupů            
-            operation = input("Enter operation (add, subtract, multiply, divide, power, sqrt, clear) or 'exit' to quit: ")
-            if operation == 'exit':
-                print("Goodbye!")
-                break
-            elif operation == 'clear':
-                print(f"Result cleared. Current result: {calc.clear()}")
-            elif operation in ['add', 'subtract', 'multiply', 'divide', 'power']:
-                a = float(input("Enter first number: "))
-                b = float(input("Enter second number: "))
-                if operation == 'add':
-                    print(f"Result: {calc.add(a, b)}")
-                elif operation == 'subtract':
-                    print(f"Result: {calc.subtract(a, b)}")
-                elif operation == 'multiply':
-                    print(f"Result: {calc.multiply(a, b)}")
-                elif operation == 'divide':
-                    print(f"Result: {calc.divide(a, b)}")
-                elif operation == 'power':
-                    print(f"Result: {calc.power(a, b)}")
-            elif operation == 'sqrt':
-                a = float(input("Enter number: "))
-                print(f"Result: {calc.square_root(a)}")
-            else:
-                print("Invalid operation. Please try again.")
-        except ValueError as e:
-            print(f"Error: {e}. Please try again.")
-        except Exception as e:
-            print(f"An unexpected error occurred: {e}. Please try again.")
+    root = tk.Tk()
+    app = CalculatorApp(root)
+    root.mainloop()

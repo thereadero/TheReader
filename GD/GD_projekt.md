@@ -1,52 +1,51 @@
-# GD Project
+# Geometry Dash Clone (GD.py)
 
 ## Overview
-GD is a Geometry Dash-inspired platformer game built using Python and the Pygame library. Players control a cube navigating through custom-built levels with various obstacles, platforms, and hazards.
+GD is a fully-featured Geometry Dash-inspired platformer built using Python and Pygame. Players control a fully customizable shape navigating through custom-built levels with various hazards, platforms, blocks, and dynamic physics including shape-specific collision and continuous rotation.
 
 ## Features
-- **Player Character**: A green cube with physics-based movement (gravity, jumping)
-- **Tries System**: Limited attempts (3 tries) that reset on game restart
-- **Build Mode**: Level editor for creating custom maps
-- **Multiple Object Types**:
-  - Blocks (blue): Solid platforms with full collision
-  - Platforms (green): Thin horizontal platforms
-  - Spikes (red rectangles): Damage hazards
-  - Triangles (red triangles): Damage hazards
-- **Collision System**: Full collision detection for solid objects, damage on hazard contact
-- **Save/Load Maps**: Maps saved to JSON file for persistence
-- **User Interface**: Menu with Start/Build buttons, in-game back button, build mode clear button
+
+### Player Customization
+- **Shapes (`cube`, `circle`, `rectangle`, `triangle`)**: Each shape handles collision differently and has a unique hit profile. For instance, the circle handles rotation while rolling.
+- **Unique Jump Strengths**: Different jumping profiles based on the selected shape.
+- **Visual Styles**: Customizable color themes including green, red, blue, and a special "face" model.
+
+### Advanced Physics & Collision
+- **Pixel-perfect Collision Detection**: Custom mask-based overlap detection for highly precise collision during rotation and movement in complex terrain.
+- **Terrain Interaction**: Handling for slopes, ramps, stepping up small blocks, ceiling bumping, and ground snapping.
+
+### Interactive Level Builder
+- **Categorized UI Accordion Menu**: Items are structured into nested categories logic (Blocks, Enemy, Miscellaneous).
+  - *Blocks*: Block, Platform, Tall Platform, Floor, Ramp.
+  - *Enemy*: 1x Spike, 2x Spikes, 3x Spikes.
+  - *Misc*: Start Node, End Node.
+- **Collision Silhouette Preview**: Real-time holographic projection of where a block will be placed before confirming it.
+- **Smart Editor Interaction**: Prevent accidental block placement behind UI elements.
+
+### Progress and Map Flow
+- **Save/Load System**: Multiple distinct maps and save files tracking in the local JSON data (`maps_*.json`).
+- **Tries Counter**: Tracks how many attempts a level has taken.
 
 ## Requirements
 - Python 3.x
-- Pygame library (`pip install pygame`)
+- Pygame (`pip install pygame`)
 
 ## How to Run
-1. Ensure Python and Pygame are installed.
-2. Navigate to the GD directory.
-3. Run the game with: `python GD.py`
+1. Navigate to the `GD` project directory.
+2. Run the executable file:
+   ```cmd
+   python GD.py
+   ```
+3. Use the interactive menu to `Start` a level, select `Build` mode to create your own maps, manage `Saves`, or `Customize` your player character.
 
 ## Controls
-- **Gameplay**: Arrow keys or WASD for movement, SPACE to jump
+- **Gameplay**:
+  - Main Menu Navigation: Mouse Left-Click.
+  - Interaction / Jump: `SPACE`
+  - Horizontal Movement: `Arrow Keys` or `A`/`D`
 - **Build Mode**:
-  - B: Select Block
-  - P: Select Platform
-  - S: Select Spike
-  - T: Select Triangle
-  - Left-click: Place object
-  - Enter: Save map
-  - Clear button: Remove all objects
-
-## Project Structure
-- `GD.py`: Main game script with classes (Button, Cube), game states, and physics
-- `maps.json`: Saved map data (created automatically)
-- `GD_projekt.md`: This documentation
-
-## Status
-Fully functional platformer with level editor. Features complete collision physics, multiple object types, and persistent map saving.
-
-## Future Improvements
-- Add more object types (moving platforms, portals)
-- Implement scoring and level progression
-- Add sound effects and background music
-- Create predefined level packs
-- Add particle effects for jumps and collisions
+  - Hotkeys for quick selection (`B` for block, `P` for platform, `S` for spikes, `R` for ramp, etc.).
+  - Left-Click to place an object.
+  - Right-Click to erase an object.
+  - Drag over UI menus to select categorical items.
+  - `Enter` to save the map context.

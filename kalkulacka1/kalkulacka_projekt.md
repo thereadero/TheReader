@@ -1,57 +1,25 @@
 # Kalkulačka (kalkulacka.py)
 
-Tento modul obsahuje jednoduchou kalkulačku (`Calculator`) poskytující základní aritmetické operace, mocniny a odmocniny spolu s jednoduchým interaktivním rozhraním uživatele.
+Tento projekt obsahuje plně funkční kalkulačku postavenou nad knihovnou `tkinter`. Zajišťuje základní aritmetické funkce, přehledné grafické uživatelské rozhraní a robustní zpracování výpočetních operací v reálném čase.
 
-##  Co soubor obsahuje
+## Co soubor obsahuje
 
-- `Calculator` třídu se stavem `result` (poslední výsledek).
-- Metody pro základní operace:
-  - `add(a, b)` – sčítání
-  - `subtract(a, b)` – odčítání
-  - `multiply(a, b)` – násobení
-  - `divide(a, b)` – dělení (vyvolá `ValueError` při dělení nulou)
-  - `power(a, b)` – mocnina (a^b)
-  - `square_root(a)` – odmocnina (vyvolá `ValueError` pro záporná čísla)
-  - `clear()` – vynuluje `result` (návratová hodnota je 0)
+- **`Calculator` třídu**
+  Obsahuje výpočetní logiku nezávislou na zobrazení (operace add, subtract, multiply, divide, power, square_root, clear) a ošetřuje kritické chybové stavy jako dělení nulou.
+- **`CalculatorApp` třídu**
+  - Implementuje grafické rozhraní `tkinter`.
+  - Správa zobrazení, rozložení tlačítek (0-9, operace, C, =) a napojení kliknutí na obslužnou logiku výpočtu.
 
-##  Jak použít (jako knihovnu)
+## Jak to vypadá
 
-```python
-from calculator import Calculator
+Rozhraní se skládá z velkého textového pole nahoře pro zobrazení čísel a výsledku a z klasické mřížky tlačítek ve spodní části, pro velmi jednoduché a intuitivní ovládání myší, typické pro standardní softwarové kalkulačky.
 
-calc = Calculator()
-print(calc.add(1, 2))          # 3
-print(calc.subtract(5, 3))     # 2
-print(calc.multiply(4, 2.5))   # 10.0
-print(calc.divide(10, 2))      # 5.0
-print(calc.power(2, 8))        # 256.0
-print(calc.square_root(25))    # 5.0
+## Spuštění programu
 
-calc.clear()                  # resetuje výsledek na 0
-```
-
->  `divide(a, b)` vyhodí `ValueError`, pokud je `b == 0`.
-
->  `square_root(a)` vyhodí `ValueError`, pokud je `a < 0`.
-
-## 🖥️ Spuštění jako skript (příkazová řádka)
-
-Spusťte:
+Ujistěte se, že máte ve vašem prostředí nainstalovaný Python a podporu pro `tkinter`. Z příkazové řádky spusťte:
 
 ```sh
-python calculator.py
+python kalkulacka.py
 ```
 
-Poté můžete v interaktivním režimu zadávat operace:
-
-- `add`, `subtract`, `multiply`, `divide`, `power`, `sqrt`, `clear`
-- `exit` pro ukončení
-
-### Příklad interakce
-
-```
-Enter operation (add, subtract, multiply, divide, power, sqrt, clear) or 'exit' to quit: add
-Enter first number: 1
-Enter second number: 2
-Result: 3.0
-```
+Po spuštění vyskočí okno s grafickým rozhraním kalkulačky, kde můžete okamžitě začít provádět výpočty.
