@@ -53,6 +53,9 @@ class CalculatorApp:
         self.calc = Calculator()
         self.expression = ""
         self.is_shift = False
+        self.full_result = ""
+        
+        self.root.bind("<Configure>", self.on_resize)
         
         # Screen frame
         self.screen_frame = tk.Frame(root, bg="white", bd=2, relief="sunken")
@@ -70,6 +73,24 @@ class CalculatorApp:
         self.screen.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 5))
         
         self.render_buttons()
+
+    def on_resize(self, event):
+        if event.widget == self.root:
+            self.format_result_by_width()
+
+    def format_result_by_width(self):
+        if not self.full_result:
+            return
+            
+        win_width = self.root.winfo_width()
+        # Arial 24 has an approximate character width of 16px. Padding is around 40px.
+        max_chars = max(1, (win_width - 40) // 16)
+        
+        if len(self.full_result) > max_chars:
+            # Pokud je delší, ořízneme na max_chars
+            self.screen_var.set(self.full_result[:max_chars])
+        else:
+            self.screen_var.set(self.full_result)
 
     def render_buttons(self):
         for widget in self.root.winfo_children():
@@ -113,22 +134,26 @@ class CalculatorApp:
             self.expression = ""
             self.screen_var.set("")
             self.ghost_var.set("")
+            self.full_result = ""
         elif item == '=':
             try:
                 # Upravený výpočet evaluací pro základní funkce
                 eval_expr = self.expression.replace('sin', 'math.sin').replace('cos', 'math.cos').replace('sqrt', 'math.sqrt')
                 result = str(eval(eval_expr))
                 self.ghost_var.set(self.expression + " =")
-                self.screen_var.set(result)
+                self.full_result = result
+                self.format_result_by_width()
                 self.expression = result
             except Exception:
                 self.ghost_var.set(self.expression + " =")
                 self.screen_var.set("Error")
                 self.expression = ""
+                self.full_result = ""
         else:
             if self.screen_var.get() == "Error":
                 self.expression = ""
                 self.ghost_var.set("")
+            self.full_result = ""
             self.expression += str(item)
             self.screen_var.set(self.expression)
 
