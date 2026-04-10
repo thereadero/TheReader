@@ -30,6 +30,42 @@ class Button:
     def is_clicked(self, event):
         return event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.rect.collidepoint(event.pos)
 
+class Slider:
+    def __init__(self, rect, min_val, max_val, default_val):
+        self.rect = pygame.Rect(rect)
+        self.min_val = min_val
+        self.max_val = max_val
+        self.val = default_val
+        self.handle_radius = 10
+        self.is_dragging = False
+
+    def process_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            handle_x = self.rect.x + int((self.val - self.min_val) / (self.max_val - self.min_val) * self.rect.width)
+            handle_rect = pygame.Rect(handle_x - self.handle_radius, self.rect.centery - self.handle_radius, self.handle_radius*2, self.handle_radius*2)
+            if handle_rect.collidepoint(event.pos) or self.rect.collidepoint(event.pos):
+                self.is_dragging = True
+                self.update_val(event.pos[0])
+                return True
+        elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+            self.is_dragging = False
+        elif event.type == pygame.MOUSEMOTION:
+            if self.is_dragging:
+                self.update_val(event.pos[0])
+                return True
+        return False
+        
+    def update_val(self, mouse_x):
+        rel_x = max(0, min(mouse_x - self.rect.x, self.rect.width))
+        self.val = self.min_val + (rel_x / self.rect.width) * (self.max_val - self.min_val)
+        self.val = round(self.val)
+
+    def draw(self, surface):
+        pygame.draw.rect(surface, (150, 150, 150), self.rect, border_radius=5)
+        handle_x = self.rect.x + int((self.val - self.min_val) / (self.max_val - self.min_val) * self.rect.width)
+        pygame.draw.circle(surface, (255, 255, 255), (handle_x, self.rect.centery), self.handle_radius)
+        draw_text(surface, f"Speed: {self.val}", (255, 255, 255), (self.rect.centerx, self.rect.y - 25), center=True)
+
 # character starting pos.
 GRID_SIZE = 20
 
@@ -102,24 +138,32 @@ def save_state(name, state):
         json.dump(saves, f, indent=2)
 
 
+def spawn_foods():
+    return [Food() for _ in range(random.randint(3, 4))]
+
 def main():
     pygame.init()
     clock = pygame.time.Clock()
 
     state = "menu"  # menu, game, upgrades, saves, save_name, settings, achievements
     snake = Snake()
-    food = Food()
+    foods = spawn_foods()
     score = 0
     move_timer = 0
     move_delay = 150 # ms per movement
     wall_wrap_upgrade = False
+    speed_setting_upgrade = False
 
     # buttons
     start_button = Button((300, 200, 200, 50), "Start")
     upgrades_button = Button((40, 430, 200, 50), "Upgrades Tree")
     wall_wrap_button = Button((250, 200, 300, 50), "Wall Wrap (Cost: 200)")
+    speed_upgrade_button = Button((250, 260, 300, 50), "Speed Setting (Cost: 100)")
     saves_button = Button((300, 260, 200, 50), "Saves")
     exit_button = Button((300, 320, 200, 50), "Exit")
+    
+    speed_slider = Slider((WIDTH//2 - 100, 200, 200, 10), min_val=1, max_val=50, default_val=10)
+    
     achievement_button = Button((560, 430, 200, 50), "achievements")
     back_button = Button((20, 20, 120, 40), "Back")
     settings_button = Button((560, 40, 200, 50), "settings")
@@ -174,12 +218,20 @@ def main():
                         wall_wrap_upgrade = True
                         wall_wrap_button.text = "Wall Wrap (Purchased!)"
                         wall_wrap_button.color = (50, 150, 50) # make it green to show it's active
+                if not speed_setting_upgrade and speed_upgrade_button.is_clicked(event):
+                    if score >= 100:
+                        score -= 100
+                        speed_setting_upgrade = True
+                        speed_upgrade_button.text = "Speed Setting (Purchased!)"
+                        speed_upgrade_button.color = (50, 150, 50)
             elif state == "achievements":
                 if back_button.is_clicked(event):
                     state = "menu"
             elif state == "settings":
                 if back_button.is_clicked(event):
                     state = "menu" 
+                if speed_setting_upgrade:
+                    speed_slider.process_event(event)
             elif state == "saves":
                 if back_button.is_clicked(event):
                     state = "menu"
@@ -213,7 +265,13 @@ def main():
             # timer-based movement
             dt = clock.get_time()
             move_timer += dt
-            if move_timer >= move_delay:
+            
+            # Map speed value to game delay: 10 is normal (150ms), 50 is fast (30ms)
+            current_delay = 150
+            if speed_setting_upgrade:
+                current_delay = max(15, int(150 - (speed_slider.val - 10) * 3))
+                
+            if move_timer >= current_delay:
                 move_timer = 0
                 head_x, head_y = snake.body[0]
                 new_head = (head_x + snake.direction[0], head_y + snake.direction[1])
@@ -234,19 +292,28 @@ def main():
 
                 snake.body.insert(0, new_head)
                 
-                # Check collision with food
-                if (new_head[0] < food.x + food.width and new_head[0] + snake.width > food.x and
-                    new_head[1] < food.y + food.height and new_head[1] + snake.height > food.y):
-                    score += 1
-                    food.new_pos()
-                else:
+                # Check collision with foods
+                food_eaten = False
+                for f in foods[:]:
+                    if (new_head[0] < f.x + f.width and new_head[0] + snake.width > f.x and
+                        new_head[1] < f.y + f.height and new_head[1] + snake.height > f.y):
+                        score += 1
+                        foods.remove(f)
+                        food_eaten = True
+                        break
+                        
+                if not food_eaten:
                     snake.body.pop() # remove tail if no food eaten
+                    
+                if not foods:
+                    foods = spawn_foods()
 
             # text messages
             draw_text(WIN, f"Score: {score}", (255, 255, 255), (WIDTH - 150, 10))
             draw_text(WIN, "Press L to save quick slot", (200, 200, 200), (10, HEIGHT - 30))
             back_button.draw(WIN)
-            food.draw(WIN)
+            for f in foods:
+                f.draw(WIN)
             snake.draw(WIN)
         elif state == "achievements":
             draw_text(WIN, "achievements", (255, 255, 255), (WIDTH // 2, 60), center=True)
@@ -254,10 +321,16 @@ def main():
         elif state == "upgrades":
             draw_text(WIN, f"Upgrades Tree (Points Available: {score})", (255, 255, 255), (WIDTH // 2, 60), center=True)
             wall_wrap_button.draw(WIN)
+            speed_upgrade_button.draw(WIN)
             back_button.draw(WIN)
         elif state == "settings":
             back_button.draw(WIN)
-            draw_text(WIN,"fps \n (placeholders) \n color",(255, 255, 255), (WIDTH // 2, 60), center=True)
+            draw_text(WIN, "Settings", (255, 255, 255), (WIDTH // 2, 60), center=True)
+            if speed_setting_upgrade:
+                speed_slider.draw(WIN)
+            else:
+                draw_text(WIN, "Speed Settings locked.", (150, 150, 150), (WIDTH // 2, 175), center=True)
+                draw_text(WIN, "Unlock in Upgrades tree.", (150, 150, 150), (WIDTH // 2, 215), center=True)
         elif state == "save_state":
             draw_text(WIN, "name the save", (255, 255, 255), (WIDTH // 2, 60), center=True)
         elif state == "saves":

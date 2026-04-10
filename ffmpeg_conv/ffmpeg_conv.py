@@ -8,7 +8,7 @@ class VideoConverter(TkinterDnD.Tk):
     def __init__(self):
         super().__init__()
         self.title("FFmpeg Video Converter")
-        self.geometry("600x450")
+        self.geometry("600x550")
 
         # Variables
         self.input_file = tk.StringVar()
@@ -50,7 +50,38 @@ class VideoConverter(TkinterDnD.Tk):
                                         values=["libx264", "libx265", "vp9", "libvpx-vp9", "copy"])
         self.codec_combo.pack(pady=5)
 
-        tk.Button(self, text="Convert", command=self.convert).pack(pady=20)
+        tk.Button(self, text="Convert", command=self.convert).pack(pady=10)
+
+        # Command Preview
+        tk.Label(self, text="Generated Command:").pack(pady=(10, 0))
+        self.cmd_preview = tk.Text(self, height=3, width=70, state=tk.DISABLED, bg="#f0f0f0")
+        self.cmd_preview.pack(pady=5, padx=10)
+
+        # Setup traces to update command preview
+        self.input_file.trace_add("write", lambda *args: self.update_cmd_preview())
+        self.output_file.trace_add("write", lambda *args: self.update_cmd_preview())
+        self.resolution.trace_add("write", lambda *args: self.update_cmd_preview())
+        self.codec.trace_add("write", lambda *args: self.update_cmd_preview())
+        
+        self.update_cmd_preview()
+
+    def update_cmd_preview(self):
+        input_file = self.input_file.get() or "input_file.mp4"
+        output_file = self.output_file.get() or "output_file.mp4"
+        resolution = self.resolution.get()
+        codec = self.codec.get()
+
+        cmd = ["ffmpeg", "-i", input_file]
+        if resolution != "original":
+            cmd.extend(["-vf", f"scale={resolution}"])
+        cmd.extend(["-c:v", codec, "-c:a", "aac", "-y", output_file])
+
+        cmd_str = " ".join(f'"{x}"' if " " in x else x for x in cmd)
+
+        self.cmd_preview.config(state=tk.NORMAL)
+        self.cmd_preview.delete("1.0", tk.END)
+        self.cmd_preview.insert(tk.END, cmd_str)
+        self.cmd_preview.config(state=tk.DISABLED)
 
     def browse_input(self):
         file_path = filedialog.askopenfilename(filetypes=[("Video files", "*.mp4 *.avi *.mkv *.mov *.wmv")])
