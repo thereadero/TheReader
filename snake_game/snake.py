@@ -12,6 +12,7 @@ pygame.display.set_caption("Snake Game")
 FONT = pygame.font.SysFont("Arial", 32)
 
 SAVE_FILE = os.path.join(os.path.dirname(__file__), "saves.json")
+ACHIEVEMENTS_FILE = os.path.join(os.path.dirname(__file__), "achievements.json")
 
 # button settings
 class Button:
@@ -138,6 +139,21 @@ def save_state(name, state):
         json.dump(saves, f, indent=2)
 
 
+def load_achievements():
+    if not os.path.exists(ACHIEVEMENTS_FILE):
+        return {"score_100": False}
+    try:
+        with open(ACHIEVEMENTS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {"score_100": False}
+
+
+def save_achievements(achievements):
+    with open(ACHIEVEMENTS_FILE, "w", encoding="utf-8") as f:
+        json.dump(achievements, f, indent=2)
+
+
 def spawn_foods():
     return [Food() for _ in range(random.randint(3, 4))]
 
@@ -153,6 +169,7 @@ def main():
     move_delay = 150 # ms per movement
     wall_wrap_upgrade = False
     speed_setting_upgrade = False
+    unlocked_achievements = load_achievements()
 
     # buttons
     start_button = Button((300, 200, 200, 50), "Start")
@@ -298,6 +315,9 @@ def main():
                     if (new_head[0] < f.x + f.width and new_head[0] + snake.width > f.x and
                         new_head[1] < f.y + f.height and new_head[1] + snake.height > f.y):
                         score += 1
+                        if score >= 100 and not unlocked_achievements.get("score_100", False):
+                            unlocked_achievements["score_100"] = True
+                            save_achievements(unlocked_achievements)
                         foods.remove(f)
                         food_eaten = True
                         break
@@ -316,7 +336,21 @@ def main():
                 f.draw(WIN)
             snake.draw(WIN)
         elif state == "achievements":
-            draw_text(WIN, "achievements", (255, 255, 255), (WIDTH // 2, 60), center=True)
+            draw_text(WIN, "Achievements", (255, 255, 255), (WIDTH // 2, 60), center=True)
+            
+            # Draw Achievement List
+            ach_y = 150
+            # Achievement: Score 100
+            ach_title = "Century Maker"
+            ach_desc = "Reach a score of 100"
+            is_unlocked = unlocked_achievements.get("score_100", False)
+            color = (0, 255, 0) if is_unlocked else (150, 150, 150)
+            status = "[Unlocked]" if is_unlocked else "[Locked]"
+            
+            pygame.draw.rect(WIN, (50, 50, 50), (100, ach_y, WIDTH - 200, 80), border_radius=10)
+            draw_text(WIN, f"{ach_title} - {status}", color, (120, ach_y + 15))
+            draw_text(WIN, ach_desc, (200, 200, 200), (120, ach_y + 45))
+            
             back_button.draw(WIN)
         elif state == "upgrades":
             draw_text(WIN, f"Upgrades Tree (Points Available: {score})", (255, 255, 255), (WIDTH // 2, 60), center=True)
