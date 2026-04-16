@@ -169,6 +169,10 @@ def main():
     move_delay = 150 # ms per movement
     wall_wrap_upgrade = False
     speed_setting_upgrade = False
+    no_growth_upgrade = False
+    snake_growth_enabled = True
+    save_input_text = ""
+    save_to_delete = None
     unlocked_achievements = load_achievements()
 
     # buttons
@@ -176,6 +180,7 @@ def main():
     upgrades_button = Button((40, 430, 200, 50), "Upgrades Tree")
     wall_wrap_button = Button((250, 200, 300, 50), "Wall Wrap (Cost: 200)")
     speed_upgrade_button = Button((250, 260, 300, 50), "Speed Setting (Cost: 100)")
+    no_growth_button = Button((250, 320, 300, 50), "Disable Growth (Cost: 75)")
     saves_button = Button((300, 260, 200, 50), "Saves")
     exit_button = Button((300, 320, 200, 50), "Exit")
     
@@ -184,6 +189,11 @@ def main():
     achievement_button = Button((560, 430, 200, 50), "achievements")
     back_button = Button((20, 20, 120, 40), "Back")
     settings_button = Button((560, 40, 200, 50), "settings")
+    growth_toggle_button = Button((WIDTH//2 - 100, 300, 200, 50), "Growth: ON")
+    confirm_save_button = Button((WIDTH//2 - 150, 250, 140, 40), "Save")
+    cancel_save_button = Button((WIDTH//2 + 10, 250, 140, 40), "Cancel")
+    confirm_delete_button = Button((WIDTH//2 - 150, 250, 140, 40), "Delete", color=(200, 50, 50))
+    cancel_delete_button = Button((WIDTH//2 + 10, 250, 140, 40), "Cancel")
 
     selected_save = None
 
@@ -214,6 +224,7 @@ def main():
                     state = "menu"
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_l:
+                        save_input_text = ""
                         state = "save_state"
                     elif event.key in (pygame.K_LEFT, pygame.K_a) and snake.direction[0] == 0:
                         snake.direction = (-GRID_SIZE, 0)
@@ -241,6 +252,12 @@ def main():
                         speed_setting_upgrade = True
                         speed_upgrade_button.text = "Speed Setting (Purchased!)"
                         speed_upgrade_button.color = (50, 150, 50)
+                if not no_growth_upgrade and no_growth_button.is_clicked(event):
+                    if score >= 75:
+                        score -= 75
+                        no_growth_upgrade = True
+                        no_growth_button.text = "Disable Growth (Purchased!)"
+                        no_growth_button.color = (50, 150, 50)
             elif state == "achievements":
                 if back_button.is_clicked(event):
                     state = "menu"
@@ -249,20 +266,53 @@ def main():
                     state = "menu" 
                 if speed_setting_upgrade:
                     speed_slider.process_event(event)
+                if no_growth_upgrade:
+                    if growth_toggle_button.is_clicked(event):
+                        snake_growth_enabled = not snake_growth_enabled
+                        growth_toggle_button.text = f"Growth: {'ON' if snake_growth_enabled else 'OFF'}"
             elif state == "saves":
                 if back_button.is_clicked(event):
                     state = "menu"
-                # saves creation function
-                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if event.type == pygame.MOUSEBUTTONDOWN:
                     saves = load_saves()
                     for idx, key in enumerate(sorted(saves.keys())):
                         rect = pygame.Rect(150, 120 + idx * 45, 200, 40)
                         if rect.collidepoint(event.pos):
-                            data = saves[key]
-                            snake.x = data.get("x", snake.x)
-                            snake.y = data.get("y", snake.y)
-                            state = "game"
+                            if event.button == 1: # Left click to load
+                                data = saves[key]
+                                snake.x = data.get("x", snake.x)
+                                snake.y = data.get("y", snake.y)
+                                score = data.get("score", score)
+                                state = "game"
+                            elif event.button == 3: # Right click to delete
+                                save_to_delete = key
+                                state = "delete_confirm"
                             break
+            elif state == "delete_confirm":
+                if confirm_delete_button.is_clicked(event):
+                    saves = load_saves()
+                    if save_to_delete in saves:
+                        del saves[save_to_delete]
+                        with open(SAVE_FILE, "w", encoding="utf-8") as f:
+                            json.dump(saves, f, indent=2)
+                    state = "saves"
+                elif cancel_delete_button.is_clicked(event) or back_button.is_clicked(event):
+                    state = "saves"
+            elif state == "save_state":
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_RETURN and save_input_text.strip():
+                        save_state(save_input_text.strip(), {"x": snake.x, "y": snake.y, "score": score})
+                        state = "game"
+                    elif event.key == pygame.K_BACKSPACE:
+                        save_input_text = save_input_text[:-1]
+                    elif event.unicode.isprintable():
+                        save_input_text += event.unicode
+                
+                if confirm_save_button.is_clicked(event) and save_input_text.strip():
+                    save_state(save_input_text.strip(), {"x": snake.x, "y": snake.y, "score": score})
+                    state = "game"
+                elif cancel_save_button.is_clicked(event):
+                    state = "game"
         # buttons visible in menu
         if state == "menu":
             draw_text(WIN, "Snake Game", (255, 255, 255), (WIDTH // 2, 60), center=True)
@@ -322,8 +372,8 @@ def main():
                         food_eaten = True
                         break
                         
-                if not food_eaten:
-                    snake.body.pop() # remove tail if no food eaten
+                if not food_eaten or not snake_growth_enabled:
+                    snake.body.pop() # remove tail if no food eaten or growth disabled
                     
                 if not foods:
                     foods = spawn_foods()
@@ -356,17 +406,35 @@ def main():
             draw_text(WIN, f"Upgrades Tree (Points Available: {score})", (255, 255, 255), (WIDTH // 2, 60), center=True)
             wall_wrap_button.draw(WIN)
             speed_upgrade_button.draw(WIN)
+            no_growth_button.draw(WIN)
             back_button.draw(WIN)
         elif state == "settings":
             back_button.draw(WIN)
             draw_text(WIN, "Settings", (255, 255, 255), (WIDTH // 2, 60), center=True)
             if speed_setting_upgrade:
                 speed_slider.draw(WIN)
-            else:
-                draw_text(WIN, "Speed Settings locked.", (150, 150, 150), (WIDTH // 2, 175), center=True)
+            
+            if no_growth_upgrade:
+                growth_toggle_button.draw(WIN)
+            
+            if not speed_setting_upgrade and not no_growth_upgrade:
+                draw_text(WIN, "Settings locked.", (150, 150, 150), (WIDTH // 2, 175), center=True)
                 draw_text(WIN, "Unlock in Upgrades tree.", (150, 150, 150), (WIDTH // 2, 215), center=True)
         elif state == "save_state":
-            draw_text(WIN, "name the save", (255, 255, 255), (WIDTH // 2, 60), center=True)
+            draw_text(WIN, "Name Your Save", (255, 255, 255), (WIDTH // 2, 60), center=True)
+            
+            # Input box
+            input_rect = pygame.Rect(WIDTH // 2 - 200, 150, 400, 50)
+            pygame.draw.rect(WIN, (50, 50, 50), input_rect, border_radius=5)
+            pygame.draw.rect(WIN, (200, 200, 200), input_rect, 2, border_radius=5)
+            
+            # Render typed text
+            draw_text(WIN, save_input_text, (255, 255, 255), input_rect.center, center=True)
+            
+            confirm_save_button.draw(WIN)
+            cancel_save_button.draw(WIN)
+            
+            draw_text(WIN, "Type name and press Enter or Save", (150, 150, 150), (WIDTH // 2, 320), center=True)
         elif state == "saves":
             draw_text(WIN, "Saves", (255, 255, 255), (WIDTH // 2, 60), center=True)
             saves = load_saves()
@@ -377,7 +445,13 @@ def main():
                     rect = pygame.Rect(150, 120 + idx * 45, 200, 40)
                     pygame.draw.rect(WIN, (100, 100, 100), rect)
                     draw_text(WIN, key, (255, 255, 255), rect.center, center=True)
-                draw_text(WIN, "Click a save to load it.", (200, 200, 200), (WIDTH // 2, HEIGHT - 40), center=True)
+                draw_text(WIN, "Left click to load. Right click to delete.", (200, 200, 200), (WIDTH // 2, HEIGHT - 40), center=True)
+            back_button.draw(WIN)
+        elif state == "delete_confirm":
+            draw_text(WIN, "Delete Save?", (255, 255, 255), (WIDTH // 2, 60), center=True)
+            draw_text(WIN, f"Are you sure you want to delete '{save_to_delete}'?", (200, 200, 200), (WIDTH // 2, 150), center=True)
+            confirm_delete_button.draw(WIN)
+            cancel_delete_button.draw(WIN)
             back_button.draw(WIN)
 
         pygame.display.update()
