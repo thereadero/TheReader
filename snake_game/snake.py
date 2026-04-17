@@ -357,6 +357,23 @@ def main():
                         ny = 0
                     new_head = (nx, ny)
 
+                if not wall_wrap_upgrade:
+                    nx, ny = new_head
+                    if nx < 0 or nx >= WIDTH or ny < 0 or ny >= HEIGHT:
+                        state = "menu"
+                        snake = Snake()
+                        score = 0
+                        foods = spawn_foods()
+                        continue
+
+                # Check self-collision
+                if new_head in snake.body:
+                    state = "menu"
+                    snake = Snake()
+                    score = 0
+                    foods = spawn_foods()
+                    continue
+
                 snake.body.insert(0, new_head)
                 
                 # Check collision with foods
