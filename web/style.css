@@ -1,44 +1,33 @@
 body{
     padding: 0;
     margin: 0;
-
 }
-.nav{
-    padding: 0;
-    margin: 20px;
-    list-style-type: none;
-
-    
-}
-.left-nav{
+.navbar{
+    background-color: blueviolet;
     display: flex;
-    flex-direction: row;
-    gap: 50px;
-    position: absolute;
+    padding: 8px;
+}
 
+.left-nav, .right-nav{
+    padding: 15px;
+    margin: 0;
+    flex: 1;
+    display: flex;
+    list-style-type: none;
+    gap: 20px; 
 }
-li{
-    padding: 5px;
-}
-li a{
-    text-decoration: none;
-    color: black;
-}
+
 .right-nav{
-    justify-self: end;
-    position: absolute;
+    justify-content: end;
 }
 .search{
-    margin-right: 15px;
-    padding: 5px;
-    border-radius: 15px;
+    border-radius: 20px;
     border: none;
-    background-color: bisque;
+    padding-left: 10px;
 }
-footer{
-    bottom: 0;
-    position: fixed;
-    text-align: center;
-    width: 100%;
-    background-color: aquamarine;
+li{
+    margin-top: 10px;
+}
+.logo{
+    max-height: 40px;  
 }
