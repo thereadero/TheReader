@@ -32,7 +32,42 @@ li{
     max-height: 40px;  
 }
 .set-img{
-    max-height: 40px;  
+    max-height: 40px;
+
+    
+}
+.user-prof{
+    max-height: 80px;
+    margin-top: -20px;
+    position: absolute;
+    margin-right: 360px;
+}
+.menu{
+
+}
+.side-menu{
+    display: none;
+    margin-top: 10px;
+    margin-left: -20px;
+
+    list-style-type: none;
+    padding: 10px;
+    position: absolute;
+    
+}
+.side-menu li{
+    margin-top: 5px;
+    padding: 15px;
+    border-radius: 12px;
+    border-color: azure;
+    background-color: blue;
+}
+.side-menu li a{
+    text-decoration: none;
+    color: black;
+}
+.menu:hover .side-menu{
+    display: block;
 }
 header{
     justify-self: center;
