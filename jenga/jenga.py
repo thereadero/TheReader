@@ -16,20 +16,20 @@ GOLD = (255, 215, 0)
 WHITE = (245, 245, 245)
 SHADOW = (0, 0, 0, 80)
 
-# Block dimensions
-L = 200
-W = 60
-H = 40
-GAP = 4
+# Block dimensions (scaled down to fit better)
+L = 160
+W = 50
+H = 30
+GAP = 3
 
 # Isometric settings
 ISO_COS = 0.866
 ISO_SIN = 0.5
 
 def project(x, y, z):
-    # Center of screen is world (0, 0, 0)
+    # Shift floor down to 75% of screen height to allow room for growth
     screen_x = WIDTH // 2 + (x - y) * ISO_COS
-    screen_y = HEIGHT // 2 + (x + y) * ISO_SIN - z
+    screen_y = HEIGHT * 0.75 + (x + y) * ISO_SIN - z
     return int(screen_x), int(screen_y)
 
 class Block:
@@ -38,51 +38,99 @@ class Block:
         self.index = index
         self.orientation = orientation  # 0: Parallel to X, 1: Parallel to Y
         self.offset = 0.0
-        self.sliding = False
+        self.state = "idle"  # "idle", "sliding", "flying"
         self.slide_dir = 1 # 1 or -1
         self.slide_speed = 10.0
-        self.pushed_out = False
         self.hovered = False
+        
+        # Animation data
+        self.flight_progress = 0.0
+        self.flight_speed = 0.03
+        self.flight_start_info = None # (x, y, z, angle)
+        self.flight_end_info = None   # (x, y, z, angle)
         
         self.color_top = WOOD_TOP
         self.color_l = WOOD_SIDE_L
         self.color_r = WOOD_SIDE_R
+        
+        # Pre-calculate grain lines for each face
+        self.grain_lines = {
+            "top": self._generate_grain(),
+            "left": self._generate_grain(),
+            "right": self._generate_grain()
+        }
+
+    def _generate_grain(self):
+        lines = []
+        for _ in range(6):
+            t1 = random.random()
+            t2 = random.random()
+            side = random.choice([0, 1]) # Which sides to connect
+            lines.append((t1, t2, side))
+        return lines
+
+    def get_world_corners(self, level, index, orientation, offset=0):
+        # Calculate center and angle
+        start = -L / 2
+        if orientation == 0:
+            cx = offset
+            cy = start + index * (W + GAP) + W / 2
+            angle = 0
+        else:
+            cx = start + index * (W + GAP) + W / 2
+            cy = offset
+            angle = 90
+        cz = level * H + H / 2
+        return self.get_corners_from_params(cx, cy, cz, angle)
+
+    def get_corners_from_params(self, cx, cy, cz, angle):
+        rad = math.radians(angle)
+        cos_a = math.cos(rad)
+        sin_a = math.sin(rad)
+        
+        hw, hl, hh = W/2, L/2, H/2
+        # Local coordinates (centered)
+        local_corners = [
+            (-hl, -hw, -hh), (hl, -hw, -hh), (hl, hw, -hh), (-hl, hw, -hh),
+            (-hl, -hw, hh), (hl, -hw, hh), (hl, hw, hh), (-hl, hw, hh),
+        ]
+        
+        world_corners = []
+        for lx, ly, lz in local_corners:
+            rx = lx * cos_a - ly * sin_a
+            ry = lx * sin_a + ly * cos_a
+            world_corners.append((cx + rx, cy + ry, cz + lz))
+        return world_corners
 
     def get_corners(self):
-        # Base position (centered)
-        # Footprint is LxL
-        start = -L / 2
-        
-        if self.orientation == 0:
-            # Parallel to X axis
-            x0 = start + self.offset
-            y0 = start + self.index * (W + GAP)
-            dx, dy = L, W
-        else:
-            # Parallel to Y axis
-            x0 = start + self.index * (W + GAP)
-            y0 = start + self.offset
-            dx, dy = W, L
+        if self.state == "flying" and self.flight_start_info is not None:
+            t = self.flight_progress
+            smooth_t = t * t * (3 - 2 * t)
             
-        z0 = self.level * H
-        
-        return [
-            (x0, y0, z0),           # 0
-            (x0 + dx, y0, z0),      # 1
-            (x0 + dx, y0 + dy, z0), # 2
-            (x0, y0 + dy, z0),      # 3
-            (x0, y0, z0 + H),       # 4
-            (x0 + dx, y0, z0 + H),  # 5
-            (x0 + dx, y0 + dy, z0 + H), # 6
-            (x0, y0 + dy, z0 + H),  # 7
-        ]
+            s_x, s_y, s_z, s_a = self.flight_start_info
+            e_x, e_y, e_z, e_a = self.flight_end_info
+            
+            # Interpolate
+            cx = s_x + (e_x - s_x) * smooth_t
+            cy = s_y + (e_y - s_y) * smooth_t
+            cz = s_z + (e_z - s_z) * smooth_t
+            # Handle rotation (always take shortest path)
+            angle = s_a + (e_a - s_a) * smooth_t
+            
+            # Parabolic arc
+            arc = math.sin(smooth_t * math.pi) * 250
+            
+            return self.get_corners_from_params(cx, cy, cz + arc, angle)
+
+        return self.get_world_corners(self.level, self.index, self.orientation, self.offset)
 
     def get_depth(self):
         corners = self.get_corners()
-        # Sort by level first, then by X+Y (back-to-front)
         avg_x = sum(c[0] for c in corners) / 8
         avg_y = sum(c[1] for c in corners) / 8
-        return self.level * 1000 + (avg_x + avg_y)
+        avg_z = sum(c[2] for c in corners) / 8
+        # Higher Z is always on top. Within the same level, higher X+Y is closer.
+        return avg_z * 1000 + (avg_x + avg_y)
 
     def draw(self, surface):
         corners = [project(*c) for c in self.get_corners()]
@@ -100,13 +148,30 @@ class Block:
             c_left = tuple(min(255, c + 30) for c in c_left)
             c_right = tuple(min(255, c + 30) for c in c_right)
 
-        pygame.draw.polygon(surface, c_right, face_right)
-        pygame.draw.polygon(surface, c_left, face_left)
-        pygame.draw.polygon(surface, c_top, face_top)
+        # Draw faces with texture effect
+        faces_info = [
+            (face_right, c_right, "right"),
+            (face_left, c_left, "left"),
+            (face_top, c_top, "top")
+        ]
         
+        for face, color, face_key in faces_info:
+            pygame.draw.polygon(surface, color, face)
+            
+            # Draw pre-calculated grain lines
+            grain_color = tuple(max(0, c - 20) for c in color)
+            v1 = (face[1][0] - face[0][0], face[1][1] - face[0][1])
+            v2 = (face[3][0] - face[0][0], face[3][1] - face[0][1])
+            
+            for t1, t2, side in self.grain_lines[face_key]:
+                # Connect points on opposite edges for a grain look
+                p1 = (face[0][0] + v1[0] * t1, face[0][1] + v1[1] * t1)
+                p2 = (face[3][0] + v1[0] * t2, face[3][1] + v1[1] * t2)
+                pygame.draw.line(surface, grain_color, p1, p2, 1)
+
         # Highlights (edges)
-        pygame.draw.line(surface, (255, 255, 255, 80), corners[4], corners[5], 2)
-        pygame.draw.line(surface, (255, 255, 255, 80), corners[4], corners[7], 2)
+        pygame.draw.line(surface, (255, 255, 255, 60), corners[4], corners[5], 2)
+        pygame.draw.line(surface, (255, 255, 255, 60), corners[4], corners[7], 2)
 
         # Outlines
         pygame.draw.polygon(surface, (40, 30, 20), face_top, 1)
@@ -114,11 +179,16 @@ class Block:
         pygame.draw.polygon(surface, (40, 30, 20), face_right, 1)
 
     def update(self):
-        if self.sliding:
+        if self.state == "sliding":
             self.offset += self.slide_dir * self.slide_speed
             if abs(self.offset) > L * 1.5:
-                self.pushed_out = True
-                self.sliding = False
+                self.state = "flying"
+                self.flight_progress = 0.0
+        elif self.state == "flying":
+            self.flight_progress += self.flight_speed
+            if self.flight_progress >= 1.0:
+                self.flight_progress = 1.0
+                self.state = "idle" # Will be finalized by game logic
 
     def is_clicked(self, mx, my):
         corners = [project(*c) for c in self.get_corners()]
@@ -181,10 +251,9 @@ class JengaGame:
         top_blocks = [b for b in self.blocks if b.level == max_level]
         return max_level, len(top_blocks)
 
-    def restack_block(self, block):
+    def prepare_flight(self, block):
         max_level, count = self.get_top_info()
         
-        # Determine target level and index
         if count < 3:
             target_level = max_level
             target_index = count
@@ -192,26 +261,44 @@ class JengaGame:
             target_level = max_level + 1
             target_index = 0
             
-        block.level = target_level
-        block.index = target_index
-        block.orientation = target_level % 2
+        # Start info (current)
+        start = -L / 2
+        if block.orientation == 0:
+            s_cx, s_cy, s_angle = block.offset, start + block.index * (W + GAP) + W / 2, 0
+        else:
+            s_cx, s_cy, s_angle = start + block.index * (W + GAP) + W / 2, block.offset, 90
+        s_cz = block.level * H + H / 2
+        block.flight_start_info = (s_cx, s_cy, s_cz, s_angle)
+        
+        # End info (target)
+        target_orientation = target_level % 2
+        if target_orientation == 0:
+            e_cx, e_cy, e_angle = 0, start + target_index * (W + GAP) + W / 2, 0
+        else:
+            e_cx, e_cy, e_angle = start + target_index * (W + GAP) + W / 2, 0, 90
+        e_cz = target_level * H + H / 2
+        block.flight_end_info = (e_cx, e_cy, e_cz, e_angle)
+        
+        block.target_level = target_level
+        block.target_index = target_index
+        block.target_orientation = target_orientation
+        block.flight_progress = 0.0
+
+    def finalize_restack(self, block):
+        block.level = block.target_level
+        block.index = block.target_index
+        block.orientation = block.target_orientation
         block.offset = 0
-        block.sliding = False
-        block.pushed_out = False
+        block.state = "idle"
         self.score += 1
 
     def check_stability(self):
-        # Very simple stability: if a level (below the top) has 0 blocks, it falls.
-        # Also check if it's leaning too much (not implemented yet, but let's do 0 blocks check)
         max_level, _ = self.get_top_info()
         for l in range(max_level):
-            level_blocks = [b for b in self.blocks if b.level == l]
+            # Blocks that are sliding still provide some support, but flying ones don't.
+            level_blocks = [b for b in self.blocks if b.level == l and b.state != "flying"]
             if len(level_blocks) == 0:
                 return False
-            # Check center of mass support?
-            # If only 1 block, it must be the middle one (index 1) or it might tip.
-            # For simplicity: must have at least one block.
-            # Better: if only one block and it's not index 1, it's unstable.
             if len(level_blocks) == 1 and level_blocks[0].index != 1:
                 return False
         return True
@@ -236,7 +323,7 @@ class JengaGame:
                         if b.level == max_l: continue
                         
                         if b.is_clicked(mx, my):
-                            b.sliding = True
+                            b.state = "sliding"
                             # Slide direction: outer blocks slide out, middle slides random
                             if b.index == 0: b.slide_dir = -1
                             elif b.index == 2: b.slide_dir = 1
@@ -255,14 +342,22 @@ class JengaGame:
             if not self.game_over:
                 for b in self.blocks:
                     b.hovered = b.is_clicked(mx, my) and not self.sliding_block
-                    b.update()
-                
-                if self.sliding_block and self.sliding_block.pushed_out:
-                    self.restack_block(self.sliding_block)
-                    self.sliding_block = None
                     
-                    if not self.check_stability():
-                        self.game_over = True
+                    old_state = b.state
+                    b.update()
+                    
+                    # Transition from sliding to flying
+                    if old_state == "sliding" and b.state == "flying":
+                        self.prepare_flight(b)
+                
+                if self.sliding_block and self.sliding_block.state == "idle":
+                    # Finished flying
+                    self.finalize_restack(self.sliding_block)
+                    self.sliding_block = None
+                
+                # Continuous stability check
+                if not self.check_stability():
+                    self.game_over = True
 
             # Draw
             self.screen.fill(BACKGROUND)
@@ -270,20 +365,20 @@ class JengaGame:
             # Draw Floor Shadow
             shadow_surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
             shadow_poly = [
-                project(-L*0.8, -L*0.8, 0),
-                project(L*0.8, -L*0.8, 0),
-                project(L*0.8, L*0.8, 0),
-                project(-L*0.8, L*0.8, 0)
+                project(-L*0.6, -L*0.6, 0),
+                project(L*0.6, -L*0.6, 0),
+                project(L*0.6, L*0.6, 0),
+                project(-L*0.6, L*0.6, 0)
             ]
-            pygame.draw.polygon(shadow_surf, (0, 0, 0, 100), shadow_poly)
+            pygame.draw.polygon(shadow_surf, (0, 0, 0, 80), shadow_poly)
             self.screen.blit(shadow_surf, (0, 0))
 
             # Draw Base/Table
             base_poly = [
-                project(-L, -L, 0),
-                project(L, -L, 0),
-                project(L, L, 0),
-                project(-L, L, 0)
+                project(-L*0.75, -L*0.75, 0),
+                project(L*0.75, -L*0.75, 0),
+                project(L*0.75, L*0.75, 0),
+                project(-L*0.75, L*0.75, 0)
             ]
             pygame.draw.polygon(self.screen, (30, 30, 40), base_poly)
             pygame.draw.polygon(self.screen, (50, 50, 70), base_poly, 2)
