@@ -17,7 +17,7 @@ WHITE = (245, 245, 245)
 SHADOW = (0, 0, 0, 80)
 
 # Block dimensions (scaled down to fit better)
-L = 160
+L = 150
 W = 50
 H = 30
 GAP = 3
@@ -42,6 +42,9 @@ class Block:
         self.slide_dir = 1 # 1 or -1
         self.slide_speed = 10.0
         self.hovered = False
+        self._cache_frame = -1
+        self._cached_corners = None
+        self._cached_projected = None
         
         # Animation data
         self.flight_progress = 0.0
@@ -62,11 +65,14 @@ class Block:
 
     def _generate_grain(self):
         lines = []
-        for _ in range(6):
+        for _ in range(12): # More lines for richness
             t1 = random.random()
             t2 = random.random()
-            side = random.choice([0, 1]) # Which sides to connect
-            lines.append((t1, t2, side))
+            # Randomly pick if the line is vertical-ish or horizontal-ish
+            side = random.choice([0, 1]) 
+            width = random.uniform(0.5, 1.5)
+            alpha = random.randint(30, 70)
+            lines.append((t1, t2, side, width, alpha))
         return lines
 
     def get_world_corners(self, level, index, orientation, offset=0):
@@ -102,7 +108,9 @@ class Block:
             world_corners.append((cx + rx, cy + ry, cz + lz))
         return world_corners
 
-    def get_corners(self):
+    def _get_current_corners(self):
+        # We'll use a simple internal state or just call it.
+        # For now, let's keep it simple but avoid redundant project() calls.
         if self.state == "flying" and self.flight_start_info is not None:
             t = self.flight_progress
             smooth_t = t * t * (3 - 2 * t)
@@ -110,73 +118,83 @@ class Block:
             s_x, s_y, s_z, s_a = self.flight_start_info
             e_x, e_y, e_z, e_a = self.flight_end_info
             
-            # Interpolate
             cx = s_x + (e_x - s_x) * smooth_t
             cy = s_y + (e_y - s_y) * smooth_t
             cz = s_z + (e_z - s_z) * smooth_t
-            # Handle rotation (always take shortest path)
             angle = s_a + (e_a - s_a) * smooth_t
-            
-            # Parabolic arc
             arc = math.sin(smooth_t * math.pi) * 250
-            
             return self.get_corners_from_params(cx, cy, cz + arc, angle)
-
+        
         return self.get_world_corners(self.level, self.index, self.orientation, self.offset)
 
     def get_depth(self):
-        corners = self.get_corners()
+        corners = self._get_current_corners()
         avg_x = sum(c[0] for c in corners) / 8
         avg_y = sum(c[1] for c in corners) / 8
         avg_z = sum(c[2] for c in corners) / 8
-        # Higher Z is always on top. Within the same level, higher X+Y is closer.
         return avg_z * 1000 + (avg_x + avg_y)
 
     def draw(self, surface):
-        corners = [project(*c) for c in self.get_corners()]
+        world_corners = self._get_current_corners()
+        corners = [project(*c) for c in world_corners]
         
-        # Faces
-        face_top = [corners[4], corners[5], corners[6], corners[7]]
-        face_left = [corners[3], corners[2], corners[6], corners[7]]
-        face_right = [corners[1], corners[2], corners[6], corners[5]]
-        
-        c_top = GOLD if self.hovered else self.color_top
-        c_left = self.color_l
-        c_right = self.color_r
-        
-        if self.hovered:
-            c_left = tuple(min(255, c + 30) for c in c_left)
-            c_right = tuple(min(255, c + 30) for c in c_right)
-
-        # Draw faces with texture effect
-        faces_info = [
-            (face_right, c_right, "right"),
-            (face_left, c_left, "left"),
-            (face_top, c_top, "top")
+        # All 6 potential faces (indices of corners)
+        # 0: (-,-,-) 1: (+,-,-) 2: (+,+,-) 3: (-,+,-) 
+        # 4: (-,-,+) 5: (+,-,+) 6: (+,+,+) 7: (-,+,+)
+        face_configs = [
+            ([4, 5, 6, 7], self.color_top, "top"),      # Top (+z)
+            ([5, 1, 2, 6], self.color_r, "right"),     # +x Face (End)
+            ([6, 2, 3, 7], self.color_l, "left"),      # +y Face (Side)
+            ([7, 3, 0, 4], self.color_r, "right"),     # -x Face (End)
+            ([4, 0, 1, 5], self.color_l, "left"),      # -y Face (Side)
+            ([1, 0, 3, 2], self.color_top, "top"),      # Bottom (-z)
         ]
         
-        for face, color, face_key in faces_info:
-            pygame.draw.polygon(surface, color, face)
+        for idxs, color, face_key in face_configs:
+            face = [corners[i] for i in idxs]
             
-            # Draw pre-calculated grain lines
-            grain_color = tuple(max(0, c - 20) for c in color)
-            v1 = (face[1][0] - face[0][0], face[1][1] - face[0][1])
-            v2 = (face[3][0] - face[0][0], face[3][1] - face[0][1])
+            # Visibility check (Shoelace / Winding order)
+            # Area = 0.5 * sum(xi*yi+1 - xi+1*yi)
+            area = 0
+            for i in range(len(face)):
+                p1 = face[i]
+                p2 = face[(i+1) % len(face)]
+                area += (p1[0] * p2[1] - p2[0] * p1[1])
             
-            for t1, t2, side in self.grain_lines[face_key]:
-                # Connect points on opposite edges for a grain look
-                p1 = (face[0][0] + v1[0] * t1, face[0][1] + v1[1] * t1)
-                p2 = (face[3][0] + v1[0] * t2, face[3][1] + v1[1] * t2)
-                pygame.draw.line(surface, grain_color, p1, p2, 1)
+            if area > 0: # Visible in our projection
+                c = GOLD if (self.hovered and face_key == "top") else color
+                if self.hovered:
+                    # Lighten sides too if hovered
+                    c = tuple(min(255, val + 40) for val in c)
+                
+                pygame.draw.polygon(surface, c, face)
+                
+                # Grain
+                grain_color = tuple(max(0, val - 30) for val in c)
+                v1 = (face[1][0] - face[0][0], face[1][1] - face[0][1])
+                # We need a vector for the other dimension to span the face
+                v2 = (face[3][0] - face[0][0], face[3][1] - face[0][1])
+                
+                for t1, t2, side, width, alpha in self.grain_lines[face_key]:
+                    p1 = (face[0][0] + v1[0] * t1, face[0][1] + v1[1] * t1)
+                    p2 = (face[3][0] + v1[0] * t2, face[3][1] + v1[1] * t2)
+                    
+                    # Direct draw (fast!) - approximate alpha by mixing colors
+                    # Since background is 'c', and grain is 'grain_color'
+                    # mixed = c * (1-a) + grain * a
+                    ratio = alpha / 255.0
+                    mixed = tuple(int(c[i] * (1 - ratio) + grain_color[i] * ratio) for i in range(3))
+                    pygame.draw.line(surface, mixed, p1, p2, int(width))
 
-        # Highlights (edges)
-        pygame.draw.line(surface, (255, 255, 255, 60), corners[4], corners[5], 2)
-        pygame.draw.line(surface, (255, 255, 255, 60), corners[4], corners[7], 2)
+                # Outlines (Thicker for clarity)
+                pygame.draw.polygon(surface, (30, 25, 20), face, 2)
 
-        # Outlines
-        pygame.draw.polygon(surface, (40, 30, 20), face_top, 1)
-        pygame.draw.polygon(surface, (40, 30, 20), face_left, 1)
-        pygame.draw.polygon(surface, (40, 30, 20), face_right, 1)
+        # Draw extra highlights on the top edges for better definition
+        # Top edges are corners 4, 5, 6, 7
+        pygame.draw.line(surface, (255, 255, 255, 80), corners[4], corners[5], 2)
+        pygame.draw.line(surface, (255, 255, 255, 80), corners[5], corners[6], 2)
+        pygame.draw.line(surface, (255, 255, 255, 80), corners[6], corners[7], 2)
+        pygame.draw.line(surface, (255, 255, 255, 80), corners[7], corners[4], 2)
 
     def update(self):
         if self.state == "sliding":
@@ -191,30 +209,34 @@ class Block:
                 self.state = "idle" # Will be finalized by game logic
 
     def is_clicked(self, mx, my):
-        corners = [project(*c) for c in self.get_corners()]
-        faces = [
-            [corners[4], corners[5], corners[6], corners[7]],
-            [corners[3], corners[2], corners[6], corners[7]],
-            [corners[1], corners[2], corners[6], corners[5]]
-        ]
-        for face in faces:
-            if self.point_in_poly(mx, my, face):
-                return True
+        world_corners = self._get_current_corners()
+        corners = [project(*c) for c in world_corners]
+        
+        # Check all visible faces for click
+        face_indices = [[4, 5, 6, 7], [5, 1, 2, 6], [6, 2, 3, 7], [7, 3, 0, 4], [4, 0, 1, 5], [1, 0, 3, 2]]
+        for idxs in face_indices:
+            face = [corners[i] for i in idxs]
+            # Visibility check (Area > 0 for CW winding in Pygame)
+            area = 0
+            for i in range(len(face)):
+                p1 = face[i]; p2 = face[(i+1)%len(face)]
+                area += (p1[0]*p2[1] - p2[0]*p1[1])
+            
+            if area > 0:
+                if self.point_in_poly(mx, my, face):
+                    return True
         return False
 
     def point_in_poly(self, x, y, poly):
         n = len(poly)
         inside = False
         p1x, p1y = poly[0]
-        for i in range(n + 1):
+        for i in range(1, n + 1):
             p2x, p2y = poly[i % n]
-            if y > min(p1y, p2y):
-                if y <= max(p1y, p2y):
-                    if x <= max(p1x, p2x):
-                        if p1y != p2y:
-                            xints = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
-                        if p1x == p2x or x <= xints:
-                            inside = not inside
+            if (p1y > y) != (p2y > y): # Crossing scanline
+                xints = (p2x - p1x) * (y - p1y) / (p2y - p1y) + p1x
+                if x < xints:
+                    inside = not inside
             p1x, p1y = p2x, p2y
         return inside
 
@@ -294,13 +316,58 @@ class JengaGame:
 
     def check_stability(self):
         max_level, _ = self.get_top_info()
+        
+        # We'll treat every block as mass 1.
+        # Flying blocks have no mass (don't contribute to weight).
+        
         for l in range(max_level):
-            # Blocks that are sliding still provide some support, but flying ones don't.
-            level_blocks = [b for b in self.blocks if b.level == l and b.state != "flying"]
-            if len(level_blocks) == 0:
+            # Support blocks at level l
+            # A block only provides support if it's not flying and not slid too far out.
+            support_blocks = [b for b in self.blocks if b.level == l and b.state != "flying" and abs(b.offset) < L/2]
+            if not support_blocks:
                 return False
-            if len(level_blocks) == 1 and level_blocks[0].index != 1:
-                return False
+            
+            # Supported mass: everything at level l+1 and above
+            # We exclude flying blocks as they are currently "in the air"
+            supported_mass_blocks = [b for b in self.blocks if b.level > l and b.state != "flying"]
+            if not supported_mass_blocks:
+                continue # Nothing above to tip
+                
+            # Calculate Center of Mass (CoM) of the entire stack above level l
+            total_x = 0
+            total_y = 0
+            for b in supported_mass_blocks:
+                start = -L / 2
+                if b.orientation == 0:
+                    cx, cy = b.offset, start + b.index * (W + GAP) + W / 2
+                else:
+                    cx, cy = start + b.index * (W + GAP) + W / 2, b.offset
+                total_x += cx
+                total_y += cy
+            
+            com_x = total_x / len(supported_mass_blocks)
+            com_y = total_y / len(supported_mass_blocks)
+            
+            # Support bounds at level l
+            orientation = l % 2
+            start = -L / 2
+            if orientation == 0:
+                # Level l blocks are parallel to X, support is critical on Y axis
+                min_y = min(start + b.index * (W + GAP) for b in support_blocks)
+                max_y = max(start + b.index * (W + GAP) + W for b in support_blocks)
+                
+                # Check if CoM.y is within the support range [min_y, max_y]
+                # We allow a very tiny margin (5 units) for game feel
+                if com_y < min_y - 5 or com_y > max_y + 5:
+                    return False
+            else:
+                # Level l blocks are parallel to Y, support is critical on X axis
+                min_x = min(start + b.index * (W + GAP) for b in support_blocks)
+                max_x = max(start + b.index * (W + GAP) + W for b in support_blocks)
+                
+                if com_x < min_x - 5 or com_x > max_x + 5:
+                    return False
+        
         return True
 
     def run(self):
@@ -312,27 +379,25 @@ class JengaGame:
                 if event.type == pygame.QUIT:
                     running = False
                 
-                if event.type == pygame.MOUSEBUTTONDOWN and not self.game_over:
-                    if self.sliding_block: continue
-                    
-                    # Sort blocks by depth to pick the front-most one
-                    sorted_blocks = sorted(self.blocks, key=lambda b: b.get_depth(), reverse=True)
-                    for b in sorted_blocks:
-                        # Cannot pick from top level
-                        max_l, _ = self.get_top_info()
-                        if b.level == max_l: continue
-                        
-                        if b.is_clicked(mx, my):
-                            b.state = "sliding"
-                            # Slide direction: outer blocks slide out, middle slides random
-                            if b.index == 0: b.slide_dir = -1
-                            elif b.index == 2: b.slide_dir = 1
-                            else: b.slide_dir = random.choice([1, -1])
-                            self.sliding_block = b
-                            break
-                    
+                if event.type == pygame.MOUSEBUTTONDOWN:
                     if self.game_over:
                         self.reset()
+                    elif not self.sliding_block:
+                        # Sort blocks by depth to pick the front-most one
+                        sorted_blocks = sorted(self.blocks, key=lambda b: b.get_depth(), reverse=True)
+                        for b in sorted_blocks:
+                            # Cannot pick from top level
+                            max_l, _ = self.get_top_info()
+                            if b.level == max_l: continue
+                            
+                            if b.is_clicked(mx, my):
+                                b.state = "sliding"
+                                # Slide direction: outer blocks slide out, middle slides random
+                                if b.index == 0: b.slide_dir = -1
+                                elif b.index == 2: b.slide_dir = 1
+                                else: b.slide_dir = random.choice([1, -1])
+                                self.sliding_block = b
+                                break
 
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_r:
@@ -340,8 +405,19 @@ class JengaGame:
 
             # Update
             if not self.game_over:
+                # Hover logic: only highlight the top-most block under cursor
+                hovered_block = None
+                if not self.sliding_block:
+                    sorted_blocks = sorted(self.blocks, key=lambda b: b.get_depth(), reverse=True)
+                    max_l, _ = self.get_top_info()
+                    for b in sorted_blocks:
+                        if b.level == max_l: continue # Cannot pick from top level
+                        if b.is_clicked(mx, my):
+                            hovered_block = b
+                            break
+
                 for b in self.blocks:
-                    b.hovered = b.is_clicked(mx, my) and not self.sliding_block
+                    b.hovered = (b == hovered_block)
                     
                     old_state = b.state
                     b.update()
