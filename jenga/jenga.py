@@ -26,10 +26,15 @@ GAP = 3
 ISO_COS = 0.866
 ISO_SIN = 0.5
 
+# Camera settings
+CAMERA_Y = 0
+
 def project(x, y, z):
-    # Shift floor down to 75% of screen height to allow room for growth
+    # Base floor Y coordinate
+    floor_y = HEIGHT * 0.75
     screen_x = WIDTH // 2 + (x - y) * ISO_COS
-    screen_y = HEIGHT * 0.75 + (x + y) * ISO_SIN - z
+    # Apply camera scroll
+    screen_y = (floor_y + CAMERA_Y) + (x + y) * ISO_SIN - z
     return int(screen_x), int(screen_y)
 
 class Block:
@@ -262,6 +267,9 @@ class JengaGame:
         self.game_over = False
         self.score = 0
         self.sliding_block = None
+        self.target_camera_y = 0
+        global CAMERA_Y
+        CAMERA_Y = 0
 
     def get_top_info(self):
         max_level = -1
@@ -402,6 +410,20 @@ class JengaGame:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_r:
                         self.reset()
+
+            # Update Camera Target
+            max_level, _ = self.get_top_info()
+            # The top block's Z is max_level * H. 
+            # We want that to be at screen_y ~ 150.
+            # floor_y + CAMERA_Y - max_z = 150
+            # CAMERA_Y = 150 - floor_y + max_z
+            floor_y = HEIGHT * 0.75
+            max_z = max_level * H
+            self.target_camera_y = max(0, 150 - floor_y + max_z)
+            
+            # Smooth scroll
+            global CAMERA_Y
+            CAMERA_Y += (self.target_camera_y - CAMERA_Y) * 0.08
 
             # Update
             if not self.game_over:
