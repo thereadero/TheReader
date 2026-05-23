@@ -1,61 +1,83 @@
-# Physics Jenga Documentation
+﻿# Isometric Jenga Game Documentation
 
-This project is a 2D physics-based simulation of the classic Jenga game, built using Python and the `pygame` library.
+This project is an isometric 3D-style Jenga simulation built with Python and `pygame`.
+The player pushes blocks out of a tower, and the game restacks them at the top while checking tower stability.
 
 ## Overview
-The game simulates a tower of wooden blocks that the player can interact with. The goal is to remove blocks from the tower without causing it to collapse. The simulation uses a custom AABB (Axis-Aligned Bounding Box) physics engine to handle gravity, friction, and collisions.
+
+- The tower is built from 12 alternating layers of wooden blocks.
+- Each layer alternates orientation between X and Y axes.
+- The player can click a non-top-level block to slide it outward.
+- If a slide completes, the block flies to the top of the stack and becomes part of a new level.
+- The game ends when the tower becomes unstable and collapses.
+
+## Controls
+
+- `Left click` on a block to push it out.
+- `R` key resets the game at any time.
+- `Click` after game over to restart.
+
+## Gameplay
+
+1. Hover over a selectable block to highlight it.
+2. Click to begin sliding the block out of the tower.
+3. The block slides outward and then flies to the next available top position.
+4. The game score increases each time a block successfully restacks.
+5. The tower is continuously checked for support, and collapse ends the game.
 
 ## Features
-- **Custom Physics**: Simple but effective 2D rigid body simulation.
-- **Alternating Layers**: Simulates the 3D structure of Jenga by alternating between "Front View" (single wide block) and "Side View" (three narrow blocks).
-- **Interactive Dragging**: Players can grab and pull blocks using the mouse.
-- **Visual Feedback**: Blocks highlight when hovered or dragged.
-- **Game State Management**: Detects tower collapse and provides a restart option.
+
+- **Isometric rendering** of 3D block faces using custom projection.
+- **Alternating block orientation** for authentic Jenga tower structure.
+- **Block hover highlighting** and click-based interaction.
+- **Dynamic camera scroll** as the tower grows taller.
+- **Support-based collapse detection** using a simplified center-of-mass stability check.
+- **Smooth animation** for sliding and flying blocks.
 
 ## Requirements
+
 - Python 3.x
-- Pygame (`pip install pygame`)
+- `pygame` (`pip install pygame`)
 
-## How to Play
-1. **Launch the game**: Run `python jenga.py`.
-2. **Interact**: 
-   - Hover over a block to see it highlight in gold.
-   - Click and hold a block to drag it.
-   - Pull the block out of the tower carefully.
-3. **Restart**: If the tower falls (any block goes off-screen), click anywhere to reset the game.
+## How to run
 
-## Code Structure
+1. Open a terminal in the `jenga` folder.
+2. Run `python jenga.py`.
 
-### 1. Configuration (Lines 5-27)
-Defines constants for the window size, FPS, colors, and physics parameters like `GRAVITY` and `FRICTION`.
+## Technical details
 
-### 2. `Block` Class (Lines 29-68)
-Represents a single block in the game.
-- **Attributes**:
-  - `rect`: A `pygame.Rect` for collision and drawing.
-  - `x, y`: Float coordinates for smooth movement.
-  - `vx, vy`: Velocity components.
-  - `is_static`: If true, the block doesn't move (used for the base table).
-- **Methods**:
-  - `update()`: Applies gravity and friction, updates position.
-  - `draw(surface)`: Renders the block with textures and highlights.
+### Isometric projection
 
-### 3. `JengaGame` Class (Lines 70-224)
-The main controller for the game.
-- **`reset()`**: Initializes the tower structure.
-- **`handle_collisions()`**: The core physics routine. It iterates through all blocks and resolves overlaps using AABB logic. It runs multiple passes per frame to improve stability.
-- **`run()`**: The main game loop handling events, updates, and rendering.
+- The game projects 3D block corner coordinates into 2D screen space using an isometric transform.
+- `project(x, y, z)` converts world coordinates to screen coordinates.
 
-## Physics Implementation Details
-The game uses a **Position-Based Dynamics** approach for collisions:
-1. **Overlap Detection**: Calculates how much two blocks overlap on the X and Y axes.
-2. **Resolution**: Pushes the blocks apart along the axis of least penetration.
-3. **Friction**: Horizontal velocity is reduced over time to simulate resistance.
-4. **Stability**: The `handle_collisions` method runs 3 iterations per frame to prevent "sinking" and jittering in the stack.
+### Block states
+
+Each block can be in one of the following states:
+
+- `idle`: The block is part of the stable stack.
+- `sliding`: The player pushed the block outward.
+- `flying`: The block is moving to its new top-level position.
+
+### Stability check
+
+- The game verifies support for each level below the tallest.
+- It computes the center-of-mass of blocks above a given level.
+- If the center-of-mass falls outside the supporting blocks on that level, the tower collapses.
+- A small margin is included for better game feel.
+
+### Code structure
+
+- `Block` class handles geometry, rendering, hover detection, and animation.
+- `JengaGame` class manages game state, input, camera movement, tower reset, and stability.
+- The main loop updates block state, checks stability, and renders the scene.
 
 ## Customization
-You can modify the game behavior by changing constants in `jenga.py`:
-- `TOWER_LEVELS`: Increase for a taller, more unstable tower.
-- `BLOCK_WIDTH / BLOCK_HEIGHT`: Changes block dimensions.
-- `GRAVITY`: Adjust to change how fast things fall.
-- `DRAG_STRENGTH`: Controls how "heavy" the blocks feel when dragging.
+
+You can adjust constants in `jenga.py` to change gameplay and visuals:
+
+- `WIDTH`, `HEIGHT`: Window size.
+- `FPS`: Frame rate.
+- `L`, `W`, `H`, `GAP`: Block size and spacing.
+- `ISO_COS`, `ISO_SIN`: Isometric projection factors.
+- `slide_speed`, `flight_speed`: Block animation speed.
