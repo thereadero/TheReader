@@ -270,6 +270,10 @@ class JengaGame:
         self.target_camera_y = 0
         global CAMERA_Y
         CAMERA_Y = 0
+        self.magic_pulls = 0
+        self.magically_supported_levels = set()
+        self.magic_message_text = ""
+        self.magic_message_timer = 0
 
     def get_top_info(self):
         max_level = -1
@@ -321,6 +325,10 @@ class JengaGame:
         block.offset = 0
         block.state = "idle"
         self.score += 1
+        if self.score > 0 and self.score % 20 == 0:
+            self.magic_pulls += 1
+            self.magic_message_text = "MAGIC PULL EARNED!"
+            self.magic_message_timer = 180
 
     def check_stability(self):
         max_level, _ = self.get_top_info()
@@ -329,6 +337,8 @@ class JengaGame:
         # Flying blocks have no mass (don't contribute to weight).
         
         for l in range(max_level):
+            if l in self.magically_supported_levels:
+                continue
             # Support blocks at level l
             # A block only provides support if it's not flying and not slid too far out.
             support_blocks = [b for b in self.blocks if b.level == l and b.state != "flying" and abs(b.offset) < L/2]
@@ -378,8 +388,36 @@ class JengaGame:
         
         return True
 
+    def draw_magic_field(self, l):
+        z = l * H
+        magic_surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        
+        # Pulse alpha/glow over time
+        pulse = math.sin(pygame.time.get_ticks() * 0.005) * 15 + 40
+        magic_poly = [
+            project(-L * 0.55, -L * 0.55, z),
+            project(L * 0.55, -L * 0.55, z),
+            project(L * 0.55, L * 0.55, z),
+            project(-L * 0.55, L * 0.55, z)
+        ]
+        pygame.draw.polygon(magic_surf, (0, 255, 220, int(pulse)), magic_poly)
+        pygame.draw.polygon(magic_surf, (0, 255, 220, 180), magic_poly, 3)
+        
+        # Concentric detail lines
+        for scale in [0.2, 0.4, 0.6, 0.8]:
+            scaled_poly = [
+                project(-L * 0.55 * scale, -L * 0.55 * scale, z),
+                project(L * 0.55 * scale, -L * 0.55 * scale, z),
+                project(L * 0.55 * scale, L * 0.55 * scale, z),
+                project(-L * 0.55 * scale, L * 0.55 * scale, z)
+            ]
+            pygame.draw.polygon(magic_surf, (0, 255, 220, 80), scaled_poly, 1)
+            
+        self.screen.blit(magic_surf, (0, 0))
+
     def run(self):
         running = True
+        hovered_block = None
         while running:
             mx, my = pygame.mouse.get_pos()
             
@@ -399,6 +437,18 @@ class JengaGame:
                             if b.level == max_l: continue
                             
                             if b.is_clicked(mx, my):
+                                # Check if it's the last block on its level
+                                level_blocks = [x for x in self.blocks if x.level == b.level]
+                                if len(level_blocks) == 1:
+                                    if self.magic_pulls > 0:
+                                        self.magic_pulls -= 1
+                                        self.magically_supported_levels.add(b.level)
+                                        self.magic_message_text = f"LEVEL {b.level + 1} LEVITATION ACTIVATED!"
+                                        self.magic_message_timer = 180
+                                    else:
+                                        # Tower will fall normally
+                                        pass
+                                
                                 b.state = "sliding"
                                 # Slide direction: outer blocks slide out, middle slides random
                                 if b.index == 0: b.slide_dir = -1
@@ -481,14 +531,69 @@ class JengaGame:
             pygame.draw.polygon(self.screen, (30, 30, 40), base_poly)
             pygame.draw.polygon(self.screen, (50, 50, 70), base_poly, 2)
 
-            # Sort and draw blocks
-            sorted_blocks = sorted(self.blocks, key=lambda b: b.get_depth())
-            for b in sorted_blocks:
-                b.draw(self.screen)
+            # Sort and draw blocks & magic fields
+            drawables = []
+            for b in self.blocks:
+                drawables.append((b.get_depth(), b))
+            for l in self.magically_supported_levels:
+                depth = (l * H + H / 2) * 1000
+                drawables.append((depth, ("magic_field", l)))
             
+            drawables.sort(key=lambda x: x[0])
+            for _, item in drawables:
+                if isinstance(item, Block):
+                    item.draw(self.screen)
+                else:
+                    _, l = item
+                    self.draw_magic_field(l)
+            
+            # Draw tooltip for hovered block if it's the last on its level
+            if not self.game_over and hovered_block:
+                level_blocks = [x for x in self.blocks if x.level == hovered_block.level]
+                if len(level_blocks) == 1:
+                    if self.magic_pulls > 0:
+                        tooltip_text = "Last Block! (Will use Magic Pull)"
+                        tooltip_color = (0, 255, 200)
+                    else:
+                        tooltip_text = "WARNING: Last Block! (Will fall!)"
+                        tooltip_color = ACCENT
+                    
+                    txt = self.font.render(tooltip_text, True, tooltip_color)
+                    tooltip_w, tooltip_h = txt.get_size()
+                    tx = min(mx + 15, WIDTH - tooltip_w - 20)
+                    ty = min(my - 25, HEIGHT - tooltip_h - 20)
+                    
+                    tip_surf = pygame.Surface((tooltip_w + 16, tooltip_h + 8), pygame.SRCALPHA)
+                    tip_surf.fill((18, 18, 24, 220))
+                    pygame.draw.rect(tip_surf, tooltip_color, tip_surf.get_rect(), 1, border_radius=4)
+                    
+                    self.screen.blit(tip_surf, (tx, ty))
+                    self.screen.blit(txt, (tx + 8, ty + 4))
+
             # UI
             score_text = self.font.render(f"Score: {self.score}", True, WHITE)
             self.screen.blit(score_text, (30, 30))
+            
+            # Draw Magic Pulls info
+            if self.magic_pulls > 0:
+                pulse = int(127 + 128 * math.sin(pygame.time.get_ticks() * 0.01))
+                magic_color = (0, pulse, 255)
+                magic_text = self.font.render(f"Magic Pulls: {self.magic_pulls} (ACTIVE)", True, magic_color)
+            else:
+                magic_text = self.font.render(f"Magic Pulls: 0 (Earn at 20 pts)", True, (120, 120, 120))
+            self.screen.blit(magic_text, (30, 70))
+            
+            # Draw notification banner
+            if self.magic_message_timer > 0:
+                self.magic_message_timer -= 1
+                banner_surf = pygame.Surface((WIDTH, 60), pygame.SRCALPHA)
+                banner_surf.fill((0, 255, 220, 30))
+                pygame.draw.line(banner_surf, (0, 255, 220, 180), (0, 0), (WIDTH, 0), 2)
+                pygame.draw.line(banner_surf, (0, 255, 220, 180), (0, 58), (WIDTH, 58), 2)
+                
+                banner_text = self.font.render(self.magic_message_text, True, (0, 255, 220))
+                banner_surf.blit(banner_text, (WIDTH // 2 - banner_text.get_width() // 2, 30 - banner_text.get_height() // 2))
+                self.screen.blit(banner_surf, (0, 120))
             
             if self.game_over:
                 overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
