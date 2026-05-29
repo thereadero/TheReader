@@ -301,12 +301,23 @@ class Minesweeper:
         # Menu parallax bubbles
         self.bubbles = [MenuBubble(self.width, self.height) for _ in range(15)]
         
+        # Custom Mode settings
+        self.custom_grid_size = 15
+        self.custom_num_mines = 30
+
         # Hover states
         self.menu_hover_progress = {mode: 0.0 for mode in MODES}
+        self.menu_hover_progress["Custom"] = 0.0
         self.hud_home_hover = 0.0
         self.hud_reset_hover = 0.0
         self.modal_play_hover = 0.0
         self.modal_menu_hover = 0.0
+        self.custom_grid_minus_hover = 0.0
+        self.custom_grid_plus_hover = 0.0
+        self.custom_mines_minus_hover = 0.0
+        self.custom_mines_plus_hover = 0.0
+        self.custom_play_hover = 0.0
+        self.custom_back_hover = 0.0
         
         # Transitions
         self.transition_alpha = 0
@@ -321,15 +332,23 @@ class Minesweeper:
 
     def select_mode(self, mode_name):
         """Initiates a smooth fade transition to start the chosen game mode."""
-        self.transition_target_state = f"PLAYING_{mode_name}"
+        if mode_name == "Custom":
+            self.transition_target_state = "CUSTOM_SETUP"
+        else:
+            self.transition_target_state = f"PLAYING_{mode_name}"
         self.transition_state = "FADING_OUT"
 
     def select_mode_immediate(self, mode_name):
         """Instantly updates dimensions and screen mode at the midpoint of transition."""
         self.current_mode = mode_name
-        self.grid_size = MODES[mode_name]["grid"]
-        self.num_mines = MODES[mode_name]["mines"]
-        self.cell_size = MODES[mode_name]["cell_size"]
+        if mode_name == "Custom":
+            self.grid_size = self.custom_grid_size
+            self.num_mines = self.custom_num_mines
+            self.cell_size = max(16, min(50, 600 // self.grid_size))
+        else:
+            self.grid_size = MODES[mode_name]["grid"]
+            self.num_mines = MODES[mode_name]["mines"]
+            self.cell_size = MODES[mode_name]["cell_size"]
         
         # Calculate optimal size dynamically
         grid_pixel_width = self.grid_size * (self.cell_size + MARGIN) - MARGIN
@@ -641,13 +660,14 @@ class Minesweeper:
         subtitle_rect = subtitle_text.get_rect(center=(self.width // 2, 160))
         self.screen.blit(subtitle_text, subtitle_rect)
 
-        y_offset = 230
+        y_offset = 210
         mouse_pos = pygame.mouse.get_pos()
         self.menu_buttons = {}
 
         # Draw custom interactive cards
-        for mode in MODES:
-            rect = pygame.Rect(self.width // 2 - 150, y_offset, 300, 75)
+        all_modes = list(MODES.keys()) + ["Custom"]
+        for mode in all_modes:
+            rect = pygame.Rect(self.width // 2 - 150, y_offset, 300, 68)
             
             is_hover = rect.collidepoint(mouse_pos)
             if is_hover:
@@ -672,22 +692,217 @@ class Minesweeper:
             pygame.draw.rect(self.screen, border_color, rect, width=2, border_radius=12)
             
             # Setup textual specifications
-            mode_text = self.font.render(mode, True, (255, 255, 255))
-            specs_str = f"{MODES[mode]['grid']} × {MODES[mode]['grid']} • {MODES[mode]['mines']} Mines"
-            specs_text = self.sub_font.render(specs_str, True, (156, 163, 175))
+            if mode == "Custom":
+                mode_text = self.font.render(mode, True, (255, 255, 255))
+                specs_str = f"{self.custom_grid_size} × {self.custom_grid_size} • {self.custom_num_mines} Mines"
+                specs_text = self.sub_font.render(specs_str, True, (156, 163, 175))
+            else:
+                mode_text = self.font.render(mode, True, (255, 255, 255))
+                specs_str = f"{MODES[mode]['grid']} × {MODES[mode]['grid']} • {MODES[mode]['mines']} Mines"
+                specs_text = self.sub_font.render(specs_str, True, (156, 163, 175))
             
-            self.screen.blit(mode_text, (rect.x + 20, rect.y + 12))
-            self.screen.blit(specs_text, (rect.x + 20, rect.y + 42))
+            self.screen.blit(mode_text, (rect.x + 20, rect.y + 10))
+            self.screen.blit(specs_text, (rect.x + 20, rect.y + 38))
             
             # Draw dynamic directional chevron
             arrow_color = border_color
-            arrow_center_y = rect.y + 37
+            arrow_center_y = rect.y + 34
             arrow_x = rect.right - 25
             pygame.draw.line(self.screen, arrow_color, (arrow_x - 4, arrow_center_y - 6), (arrow_x + 2, arrow_center_y), 3)
             pygame.draw.line(self.screen, arrow_color, (arrow_x + 2, arrow_center_y), (arrow_x - 4, arrow_center_y + 6), 3)
             
             self.menu_buttons[mode] = rect
-            y_offset += 95
+            y_offset += 82
+
+    def draw_custom_setup(self):
+        """Draws the custom mode setup/configuration menu."""
+        self.screen.fill(BG_COLOR)
+        
+        # Update and draw floating background bubbles
+        for b in self.bubbles:
+            b.update(self.width, self.height)
+            b.draw(self.screen)
+            
+        # Draw Title
+        title_text = self.title_font.render("CUSTOM SETUP", True, (255, 255, 255))
+        title_rect = title_text.get_rect(center=(self.width // 2, 90))
+        self.screen.blit(title_text, title_rect)
+
+        subtitle_text = self.sub_font_bold.render("DESIGN YOUR BOARD", True, ACCENT_COLOR)
+        subtitle_rect = subtitle_text.get_rect(center=(self.width // 2, 135))
+        self.screen.blit(subtitle_text, subtitle_rect)
+
+        mouse_pos = pygame.mouse.get_pos()
+
+        # --- Card 1: Grid Size (100, 175, 400, 115) ---
+        grid_card_rect = pygame.Rect(100, 175, 400, 115)
+        pygame.draw.rect(self.screen, GRID_BG_COLOR, grid_card_rect, border_radius=12)
+        pygame.draw.rect(self.screen, (38, 41, 54), grid_card_rect, width=2, border_radius=12)
+        
+        grid_lbl = self.sub_font_bold.render("GRID SIZE", True, ACCENT_COLOR)
+        self.screen.blit(grid_lbl, (grid_card_rect.x + 20, grid_card_rect.y + 12))
+        
+        # Minus & Plus button rects for grid
+        self.grid_minus_rect = pygame.Rect(grid_card_rect.x + 30, grid_card_rect.y + 48, 40, 40)
+        self.grid_plus_rect = pygame.Rect(grid_card_rect.right - 70, grid_card_rect.y + 48, 40, 40)
+        
+        # Update hover states
+        if self.grid_minus_rect.collidepoint(mouse_pos):
+            self.custom_grid_minus_hover = min(1.0, self.custom_grid_minus_hover + 0.15)
+        else:
+            self.custom_grid_minus_hover = max(0.0, self.custom_grid_minus_hover - 0.15)
+            
+        if self.grid_plus_rect.collidepoint(mouse_pos):
+            self.custom_grid_plus_hover = min(1.0, self.custom_grid_plus_hover + 0.15)
+        else:
+            self.custom_grid_plus_hover = max(0.0, self.custom_grid_plus_hover - 0.15)
+            
+        # Draw minus button
+        minus_color = (
+            int(38 + (59 - 38) * self.custom_grid_minus_hover),
+            int(41 + (130 - 41) * self.custom_grid_minus_hover),
+            int(54 + (246 - 54) * self.custom_grid_minus_hover)
+        )
+        pygame.draw.rect(self.screen, minus_color, self.grid_minus_rect, border_radius=8)
+        minus_text = self.ui_font.render("-", True, TEXT_COLOR)
+        minus_rect_text = minus_text.get_rect(center=(self.grid_minus_rect.centerx, self.grid_minus_rect.centery - 2))
+        self.screen.blit(minus_text, minus_rect_text)
+        
+        # Draw plus button
+        plus_color = (
+            int(38 + (59 - 38) * self.custom_grid_plus_hover),
+            int(41 + (130 - 41) * self.custom_grid_plus_hover),
+            int(54 + (246 - 54) * self.custom_grid_plus_hover)
+        )
+        pygame.draw.rect(self.screen, plus_color, self.grid_plus_rect, border_radius=8)
+        plus_text = self.ui_font.render("+", True, TEXT_COLOR)
+        plus_rect_text = plus_text.get_rect(center=(self.grid_plus_rect.centerx, self.grid_plus_rect.centery - 2))
+        self.screen.blit(plus_text, plus_rect_text)
+        
+        # Draw current grid size text
+        grid_val_str = f"{self.custom_grid_size} × {self.custom_grid_size}"
+        grid_val_text = self.ui_font.render(grid_val_str, True, TEXT_COLOR)
+        self.screen.blit(grid_val_text, grid_val_text.get_rect(center=(grid_card_rect.centerx, grid_card_rect.y + 68)))
+
+        # --- Card 2: Mine Count (100, 305, 400, 115) ---
+        mines_card_rect = pygame.Rect(100, 305, 400, 115)
+        pygame.draw.rect(self.screen, GRID_BG_COLOR, mines_card_rect, border_radius=12)
+        pygame.draw.rect(self.screen, (38, 41, 54), mines_card_rect, width=2, border_radius=12)
+        
+        mines_lbl = self.sub_font_bold.render("MINE COUNT", True, ACCENT_COLOR)
+        self.screen.blit(mines_lbl, (mines_card_rect.x + 20, mines_card_rect.y + 12))
+        
+        # Minus & Plus button rects for mines
+        self.mines_minus_rect = pygame.Rect(mines_card_rect.x + 30, mines_card_rect.y + 48, 40, 40)
+        self.mines_plus_rect = pygame.Rect(mines_card_rect.right - 70, mines_card_rect.y + 48, 40, 40)
+        
+        # Update hover states
+        if self.mines_minus_rect.collidepoint(mouse_pos):
+            self.custom_mines_minus_hover = min(1.0, self.custom_mines_minus_hover + 0.15)
+        else:
+            self.custom_mines_minus_hover = max(0.0, self.custom_mines_minus_hover - 0.15)
+            
+        if self.mines_plus_rect.collidepoint(mouse_pos):
+            self.custom_mines_plus_hover = min(1.0, self.custom_mines_plus_hover + 0.15)
+        else:
+            self.custom_mines_plus_hover = max(0.0, self.custom_mines_plus_hover - 0.15)
+            
+        # Draw minus button
+        pygame.draw.rect(self.screen, minus_color, self.mines_minus_rect, border_radius=8)
+        self.screen.blit(minus_text, minus_text.get_rect(center=(self.mines_minus_rect.centerx, self.mines_minus_rect.centery - 2)))
+        
+        # Draw plus button
+        pygame.draw.rect(self.screen, plus_color, self.mines_plus_rect, border_radius=8)
+        self.screen.blit(plus_text, plus_text.get_rect(center=(self.mines_plus_rect.centerx, self.mines_plus_rect.centery - 2)))
+        
+        # Draw current mine count text
+        mines_val_str = f"{self.custom_num_mines}"
+        mines_val_text = self.ui_font.render(mines_val_str, True, TEXT_COLOR)
+        self.screen.blit(mines_val_text, mines_val_text.get_rect(center=(mines_card_rect.centerx, mines_card_rect.y + 68)))
+
+        # --- Card 3: Density Info (100, 435, 400, 100) ---
+        density_card_rect = pygame.Rect(100, 435, 400, 100)
+        pygame.draw.rect(self.screen, GRID_BG_COLOR, density_card_rect, border_radius=12)
+        pygame.draw.rect(self.screen, (38, 41, 54), density_card_rect, width=2, border_radius=12)
+        
+        # Calculate mine density
+        total_cells = self.custom_grid_size * self.custom_grid_size
+        density_pct = (self.custom_num_mines / total_cells) * 100
+        
+        # Determine rating and color
+        if density_pct < 10.0:
+            rating = "Easy"
+            rating_color = (59, 130, 246)  # Blue
+        elif density_pct <= 20.0:
+            rating = "Recommended"
+            rating_color = (16, 185, 129)  # Green
+        elif density_pct <= 30.0:
+            rating = "Challenging"
+            rating_color = (245, 158, 11)  # Orange
+        else:
+            rating = "Extreme"
+            rating_color = (239, 68, 68)   # Red
+            
+        density_lbl = self.sub_font_bold.render("MINE DENSITY PREVIEW", True, ACCENT_COLOR)
+        self.screen.blit(density_lbl, (density_card_rect.x + 20, density_card_rect.y + 12))
+        
+        # Render rating and percentage text
+        density_str = f"{density_pct:.1f}% — {rating}"
+        density_val_text = self.sub_font_bold.render(density_str, True, rating_color)
+        self.screen.blit(density_val_text, (density_card_rect.right - 20 - density_val_text.get_width(), density_card_rect.y + 12))
+        
+        # Draw custom visual density progress bar
+        bar_x = density_card_rect.x + 20
+        bar_y = density_card_rect.y + 48
+        bar_w = density_card_rect.width - 40
+        bar_h = 10
+        pygame.draw.rect(self.screen, REVEALED_COLOR, (bar_x, bar_y, bar_w, bar_h), border_radius=5)
+        
+        # Fill proportion (clamped between 0 and 1)
+        fill_w = int(bar_w * min(1.0, density_pct / 50.0))  # Max 50% density represented on bar
+        pygame.draw.rect(self.screen, rating_color, (bar_x, bar_y, fill_w, bar_h), border_radius=5)
+        
+        # Helper tip text inside card
+        tip_text = self.sub_font.render("* Tip: Hold Shift to change values by 5", True, (107, 114, 128))
+        self.screen.blit(tip_text, tip_text.get_rect(center=(density_card_rect.centerx, density_card_rect.y + 78)))
+
+        # --- Play & Back Buttons (100, 560, 400, 50) ---
+        self.custom_play_btn = pygame.Rect(100, 560, 185, 50)
+        self.custom_back_btn = pygame.Rect(315, 560, 185, 50)
+        
+        if self.custom_play_btn.collidepoint(mouse_pos):
+            self.custom_play_hover = min(1.0, self.custom_play_hover + 0.15)
+        else:
+            self.custom_play_hover = max(0.0, self.custom_play_hover - 0.15)
+            
+        if self.custom_back_btn.collidepoint(mouse_pos):
+            self.custom_back_hover = min(1.0, self.custom_back_hover + 0.15)
+        else:
+            self.custom_back_hover = max(0.0, self.custom_back_hover - 0.15)
+            
+        # Draw Play Button
+        play_color = (
+            int(38 + (59 - 38) * self.custom_play_hover),
+            int(41 + (130 - 41) * self.custom_play_hover),
+            int(54 + (246 - 54) * self.custom_play_hover)
+        )
+        pygame.draw.rect(self.screen, play_color, self.custom_play_btn, border_radius=8)
+        pygame.draw.rect(self.screen, ACCENT_COLOR if self.custom_play_hover > 0 else (51, 55, 74), self.custom_play_btn, width=2, border_radius=8)
+        
+        play_text = self.button_font.render("START GAME", True, TEXT_COLOR)
+        self.screen.blit(play_text, play_text.get_rect(center=self.custom_play_btn.center))
+        
+        # Draw Back Button
+        back_color = (
+            int(23 + (38 - 23) * self.custom_back_hover),
+            int(24 + (41 - 24) * self.custom_back_hover),
+            int(33 + (54 - 33) * self.custom_back_hover)
+        )
+        pygame.draw.rect(self.screen, back_color, self.custom_back_btn, border_radius=8)
+        pygame.draw.rect(self.screen, (51, 55, 74), self.custom_back_btn, width=2, border_radius=8)
+        
+        back_text = self.button_font.render("BACK", True, TEXT_COLOR)
+        self.screen.blit(back_text, back_text.get_rect(center=self.custom_back_btn.center))
 
     # --- Transitions and Execution Loop ---
 
@@ -702,6 +917,16 @@ class Minesweeper:
                     if self.transition_target_state.startswith("PLAYING_"):
                         mode = self.transition_target_state.split("_")[1]
                         self.select_mode_immediate(mode)
+                    elif self.transition_target_state == "CUSTOM_SETUP":
+                        self.state = "CUSTOM_SETUP"
+                        self.width, self.height = 600, 700
+                        self.screen = pygame.display.set_mode((self.width, self.height))
+                        self.custom_grid_minus_hover = 0.0
+                        self.custom_grid_plus_hover = 0.0
+                        self.custom_mines_minus_hover = 0.0
+                        self.custom_mines_plus_hover = 0.0
+                        self.custom_play_hover = 0.0
+                        self.custom_back_hover = 0.0
                     elif self.transition_target_state == "MENU":
                         self.go_to_menu_immediate()
                     self.transition_state = "FADING_IN"
@@ -737,6 +962,49 @@ class Minesweeper:
                             for mode, rect in self.menu_buttons.items():
                                 if rect.collidepoint(event.pos):
                                     self.select_mode(mode)
+                elif self.state == "CUSTOM_SETUP":
+                    if event.type == pygame.KEYDOWN:
+                        if event.key in (pygame.K_ESCAPE, pygame.K_BACKSPACE):
+                            self.transition_target_state = "MENU"
+                            self.transition_state = "FADING_OUT"
+                    elif event.type == pygame.MOUSEBUTTONDOWN:
+                        if event.button == 1:
+                            mx, my = event.pos
+                            shift_held = bool(pygame.key.get_mods() & pygame.KMOD_SHIFT)
+                            step = 5 if shift_held else 1
+                            
+                            # Grid Minus
+                            if self.grid_minus_rect.collidepoint(mx, my):
+                                self.custom_grid_size = max(5, self.custom_grid_size - step)
+                                max_mines = (self.custom_grid_size * self.custom_grid_size) - 9
+                                self.custom_num_mines = min(self.custom_num_mines, max_mines)
+                                self.spawn_puff(mx, my)
+                            
+                            # Grid Plus
+                            elif self.grid_plus_rect.collidepoint(mx, my):
+                                self.custom_grid_size = min(30, self.custom_grid_size + step)
+                                self.spawn_puff(mx, my)
+                                
+                            # Mines Minus
+                            elif self.mines_minus_rect.collidepoint(mx, my):
+                                self.custom_num_mines = max(1, self.custom_num_mines - step)
+                                self.spawn_puff(mx, my)
+                                
+                            # Mines Plus
+                            elif self.mines_plus_rect.collidepoint(mx, my):
+                                max_mines = (self.custom_grid_size * self.custom_grid_size) - 9
+                                self.custom_num_mines = min(max_mines, self.custom_num_mines + step)
+                                self.spawn_puff(mx, my)
+                                
+                            # Start Game button
+                            elif self.custom_play_btn.collidepoint(mx, my):
+                                self.transition_target_state = "PLAYING_Custom"
+                                self.transition_state = "FADING_OUT"
+                                
+                            # Back button
+                            elif self.custom_back_btn.collidepoint(mx, my):
+                                self.transition_target_state = "MENU"
+                                self.transition_state = "FADING_OUT"
                 else:
                     # In-Game State events
                     if event.type == pygame.KEYDOWN:
@@ -800,6 +1068,8 @@ class Minesweeper:
             # Render current Frame
             if self.state == "MENU":
                 self.draw_menu()
+            elif self.state == "CUSTOM_SETUP":
+                self.draw_custom_setup()
             else:
                 self.screen.fill(BG_COLOR)
                 
