@@ -16,6 +16,8 @@ MODES = {
 WIDTH, HEIGHT = 600, 700
 MARGIN = 5
 TOP_BAR_HEIGHT = 100
+BUTTON_HOLD_DELAY = 400       # Time in ms before repeating starts
+BUTTON_HOLD_INTERVAL = 80     # Time in ms between repeats
 
 # Colors (Modern Dark Theme Palette)
 BG_COLOR = (12, 13, 18)        # Deep slate-black
@@ -318,6 +320,9 @@ class Minesweeper:
         self.custom_mines_plus_hover = 0.0
         self.custom_play_hover = 0.0
         self.custom_back_hover = 0.0
+        self.held_button = None
+        self.button_hold_timer = 0
+        self.button_hold_last_trigger = 0
         
         # Transitions
         self.transition_alpha = 0
@@ -927,8 +932,10 @@ class Minesweeper:
                         self.custom_mines_plus_hover = 0.0
                         self.custom_play_hover = 0.0
                         self.custom_back_hover = 0.0
+                        self.held_button = None
                     elif self.transition_target_state == "MENU":
                         self.go_to_menu_immediate()
+                        self.held_button = None
                     self.transition_state = "FADING_IN"
             elif self.transition_state == "FADING_IN":
                 self.transition_alpha = max(0, self.transition_alpha - 18)
@@ -979,22 +986,34 @@ class Minesweeper:
                                 max_mines = (self.custom_grid_size * self.custom_grid_size) - 9
                                 self.custom_num_mines = min(self.custom_num_mines, max_mines)
                                 self.spawn_puff(mx, my)
+                                self.held_button = "grid_minus"
+                                self.button_hold_timer = pygame.time.get_ticks()
+                                self.button_hold_last_trigger = pygame.time.get_ticks()
                             
                             # Grid Plus
                             elif self.grid_plus_rect.collidepoint(mx, my):
                                 self.custom_grid_size = min(30, self.custom_grid_size + step)
                                 self.spawn_puff(mx, my)
+                                self.held_button = "grid_plus"
+                                self.button_hold_timer = pygame.time.get_ticks()
+                                self.button_hold_last_trigger = pygame.time.get_ticks()
                                 
                             # Mines Minus
                             elif self.mines_minus_rect.collidepoint(mx, my):
                                 self.custom_num_mines = max(1, self.custom_num_mines - step)
                                 self.spawn_puff(mx, my)
+                                self.held_button = "mines_minus"
+                                self.button_hold_timer = pygame.time.get_ticks()
+                                self.button_hold_last_trigger = pygame.time.get_ticks()
                                 
                             # Mines Plus
                             elif self.mines_plus_rect.collidepoint(mx, my):
                                 max_mines = (self.custom_grid_size * self.custom_grid_size) - 9
                                 self.custom_num_mines = min(max_mines, self.custom_num_mines + step)
                                 self.spawn_puff(mx, my)
+                                self.held_button = "mines_plus"
+                                self.button_hold_timer = pygame.time.get_ticks()
+                                self.button_hold_last_trigger = pygame.time.get_ticks()
                                 
                             # Start Game button
                             elif self.custom_play_btn.collidepoint(mx, my):
@@ -1005,6 +1024,9 @@ class Minesweeper:
                             elif self.custom_back_btn.collidepoint(mx, my):
                                 self.transition_target_state = "MENU"
                                 self.transition_state = "FADING_OUT"
+                    elif event.type == pygame.MOUSEBUTTONUP:
+                        if event.button == 1:
+                            self.held_button = None
                 else:
                     # In-Game State events
                     if event.type == pygame.KEYDOWN:
@@ -1064,6 +1086,51 @@ class Minesweeper:
                                                 cell.is_flagged = not cell.is_flagged
                                                 self.flags_used += 1 if cell.is_flagged else -1
                                                 self.spawn_puff(cell.rect.centerx, cell.rect.centery)
+
+            # Handle button hold-to-repeat logic in custom setup screen
+            if self.state == "CUSTOM_SETUP" and self.held_button and self.transition_state == "IDLE":
+                if pygame.mouse.get_pressed()[0]:
+                    now = pygame.time.get_ticks()
+                    mx, my = pygame.mouse.get_pos()
+                    
+                    hovered_rect = None
+                    if self.held_button == "grid_minus":
+                        hovered_rect = self.grid_minus_rect
+                    elif self.held_button == "grid_plus":
+                        hovered_rect = self.grid_plus_rect
+                    elif self.held_button == "mines_minus":
+                        hovered_rect = self.mines_minus_rect
+                    elif self.held_button == "mines_plus":
+                        hovered_rect = self.mines_plus_rect
+                    
+                    if hovered_rect and hovered_rect.collidepoint(mx, my):
+                        elapsed_since_start = now - self.button_hold_timer
+                        if elapsed_since_start >= BUTTON_HOLD_DELAY:
+                            if now - self.button_hold_last_trigger >= BUTTON_HOLD_INTERVAL:
+                                shift_held = bool(pygame.key.get_mods() & pygame.KMOD_SHIFT)
+                                step = 5 if shift_held else 1
+                                
+                                if self.held_button == "grid_minus":
+                                    self.custom_grid_size = max(5, self.custom_grid_size - step)
+                                    max_mines = (self.custom_grid_size * self.custom_grid_size) - 9
+                                    self.custom_num_mines = min(self.custom_num_mines, max_mines)
+                                    self.spawn_puff(mx, my)
+                                elif self.held_button == "grid_plus":
+                                    self.custom_grid_size = min(30, self.custom_grid_size + step)
+                                    self.spawn_puff(mx, my)
+                                elif self.held_button == "mines_minus":
+                                    self.custom_num_mines = max(1, self.custom_num_mines - step)
+                                    self.spawn_puff(mx, my)
+                                elif self.held_button == "mines_plus":
+                                    max_mines = (self.custom_grid_size * self.custom_grid_size) - 9
+                                    self.custom_num_mines = min(max_mines, self.custom_num_mines + step)
+                                    self.spawn_puff(mx, my)
+                                    
+                                self.button_hold_last_trigger = now
+                    else:
+                        self.held_button = None
+                else:
+                    self.held_button = None
 
             # Render current Frame
             if self.state == "MENU":
