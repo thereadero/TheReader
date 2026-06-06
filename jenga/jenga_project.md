@@ -85,7 +85,7 @@ $$\text{arc} = \sin(t_{\text{smooth}} \times \pi) \times 250$$
 ## Technical Details
 
 ### Code Architecture
-The code in [jenga.py](file:///c:/Users/ondra/Documents/git_game/TheReader/jenga/jenga.py) is structured around two main classes:
+The code in [jenga.py] is structured around two main classes:
 
 1. **`Block`**:
    - Manages block states (`idle`, `sliding`, `flying`).
@@ -114,7 +114,7 @@ The code in [jenga.py](file:///c:/Users/ondra/Documents/git_game/TheReader/jenga
 
 ## Customization Constants
 
-You can tweak the constants at the top of [jenga.py](file:///c:/Users/ondra/Documents/git_game/TheReader/jenga/jenga.py) to change the game's visuals or difficulty:
+You can tweak the constants at the top of [jenga.py] to change the game's visuals or difficulty:
 
 * `L`, `W`, `H`, `GAP`: Block dimensions (Length, Width, Height) and spacing.
 * `slide_speed` (inside `Block`): Speed at which blocks slide outward (default: `10.0`).
